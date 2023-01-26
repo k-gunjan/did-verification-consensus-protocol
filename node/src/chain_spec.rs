@@ -40,8 +40,8 @@ pub fn development_config() -> Result<ChainSpec, String> {
 	let wasm_binary = WASM_BINARY.ok_or_else(|| "Development wasm not available".to_string())?;
 
 	let mut properties = Properties::new();
-    properties.insert("tokenSymbol".into(), "PAN".into());
-    properties.insert("tokenDecimals".into(), 12.into());
+	properties.insert("tokenSymbol".into(), "PAN".into());
+	properties.insert("tokenDecimals".into(), 12.into());
 
 	Ok(ChainSpec::from_genesis(
 		// Name
