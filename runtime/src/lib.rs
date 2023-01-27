@@ -50,6 +50,9 @@ pub use sp_runtime::{Perbill, Permill};
 /// Import the template pallet.
 pub use pallet_template;
 
+/// Import the adoption pallet.
+pub use pallet_adoption;
+
 /// An index to a block.
 pub type BlockNumber = u32;
 
@@ -281,6 +284,26 @@ impl pallet_template::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 }
 
+parameter_types! {
+	///max length of id in adoption pallet
+	pub const MaxLength:u32 = 10;
+		///min length of id in adoption pallet
+	pub const MinLength:u32 = 5;
+	///max and min (32 for v0) lenght of CID
+	pub const MinCIDLength:u32 = 32;
+	pub const MaxCIDLength:u32 = 100; //most likely max as lenght depends on hashing algo
+}
+
+/// Configure the pallet-adoption in pallets/adoption.
+impl pallet_adoption::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type MaxLength = MaxLength;
+	type MinLength = MinLength;
+	type MinCIDLength = MinCIDLength;
+	type MaxCIDLength = MaxCIDLength;
+	type Currency = Balances;
+}
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
 	pub struct Runtime
@@ -297,8 +320,10 @@ construct_runtime!(
 		Balances: pallet_balances,
 		TransactionPayment: pallet_transaction_payment,
 		Sudo: pallet_sudo,
+		Contracts: pallet_contracts,
 		// Include the custom logic from the pallet-template in the runtime.
 		TemplateModule: pallet_template,
+		AdoptionModule: pallet_adoption,
 	}
 );
 
@@ -346,6 +371,8 @@ mod benches {
 		[pallet_balances, Balances]
 		[pallet_timestamp, Timestamp]
 		[pallet_template, TemplateModule]
+		[pallet_contracts, Contracts]
+		[pallet_adoption, AdoptionModule]
 	);
 }
 
