@@ -1,0 +1,29 @@
+[package]
+name = "pallet-did-rpc-runtime-api"
+version = "1.0.0"
+authors = ["K Gunjan <gunjan.cn@gmail.com>"]
+edition = "2021"
+license = "Apache-2.0"
+homepage = "https://substrate.io"
+repository = "https://github.com/paritytech/substrate/"
+description = "RPC runtime API for transaction payment FRAME pallet"
+readme = "README.md"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive"] }
+pallet-did = { version = "4.0.0-dev", default-features = false, path = "../../../did" }
+sp-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.30" }
+sp-runtime = { version = "6.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.30" }
+frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.30" }
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"pallet-did/std",
+	"sp-api/std",
+	"sp-runtime/std",
+]

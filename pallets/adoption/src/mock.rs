@@ -1,5 +1,8 @@
 use crate as pallet_adoption;
-use frame_support::{parameter_types, traits::{ConstU16, ConstU32, ConstU64, ConstU128}};
+use frame_support::{
+	parameter_types,
+	traits::{ConstU128, ConstU16, ConstU32, ConstU64},
+};
 use pallet_balances::AccountData;
 use sp_core::H256;
 use sp_runtime::{
@@ -51,7 +54,6 @@ impl frame_system::Config for Test {
 	type SS58Prefix = ConstU16<42>;
 	type OnSetCode = ();
 	type MaxConsumers = frame_support::traits::ConstU32<16>;
-
 }
 
 parameter_types! {

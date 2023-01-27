@@ -54,6 +54,11 @@ pub use pallet_template;
 /// Import the adoption pallet.
 pub use pallet_adoption;
 
+///import the did pallet.
+pub use pallet_did;
+
+use pallet_did::types::Attribute;
+
 /// An index to a block.
 pub type BlockNumber = u32;
 
@@ -72,6 +77,9 @@ pub type Index = u32;
 
 /// A hash of some data used by the chain.
 pub type Hash = sp_core::H256;
+
+/// Type used for expressing timestamp.
+pub type Moment = u64;
 
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
 /// the specifics of the runtime. They can then be made to be agnostic over specific formats
@@ -358,6 +366,12 @@ impl pallet_adoption::Config for Runtime {
 	type Currency = Balances;
 }
 
+/// Configure the pallet-did in pallets/did.
+impl pallet_did::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Time = Timestamp;
+}
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
 	pub struct Runtime
@@ -378,6 +392,7 @@ construct_runtime!(
 		// Include the custom logic from the pallet-template in the runtime.
 		TemplateModule: pallet_template,
 		AdoptionModule: pallet_adoption,
+		DIDModule: pallet_did,
 	}
 );
 
@@ -427,6 +442,7 @@ mod benches {
 		[pallet_template, TemplateModule]
 		[pallet_contracts, Contracts]
 		[pallet_adoption, AdoptionModule]
+		[pallet_did, DIDModule]
 	);
 }
 
@@ -589,6 +605,25 @@ impl_runtime_apis! {
 			key: Vec<u8>,
 		) -> pallet_contracts_primitives::GetStorageResult {
 			Contracts::get_storage(address, key)
+		}
+	}
+
+	impl pallet_did_rpc_runtime_api::ReadAttributeApi<
+	Block,
+	AccountId,
+	BlockNumber,
+	Moment,
+	> for Runtime
+	{
+		fn read_attribute(
+			did: AccountId,
+			name: Vec<u8>,
+		) -> Option<Attribute<BlockNumber, Moment>> {
+			DIDModule::read_attribute(&did, &name)
+		}
+
+		fn get_a_fixed_value(i:u32, j:u32) -> u32 {
+			DIDModule::get_a_value(i,j)
 		}
 	}
 
