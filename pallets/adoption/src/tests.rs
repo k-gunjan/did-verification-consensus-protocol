@@ -5,9 +5,9 @@ use frame_support::{assert_noop, assert_ok};
 // fn it_works_for_default_value() {
 // 	new_test_ext().execute_with(|| {
 // 		// Dispatch a signed extrinsic.
-// 		// assert_ok!(AdoptionModule::do_something(RuntimeOrigin::adoption_event_types_creation("abcdefg".to_vec(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_vec()), 42));
-// 		// Read pallet storage and assert an expected result.
-// 		// assert_eq!(AdoptionModule::something(), Some(42));
+// 		// assert_ok!(AdoptionModule::do_something(RuntimeOrigin::adoption_event_types_creation("abcdefg"
+// .to_vec(), "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_vec()), 42)); 		// Read pallet
+// storage and assert an expected result. 		// assert_eq!(AdoptionModule::something(), Some(42));
 // 		assert_ok!(1,1);
 // 	});
 // }
