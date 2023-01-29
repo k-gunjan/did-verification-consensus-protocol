@@ -40,6 +40,8 @@ sp-version = { version = "5.0.0", default-features = false, git = "https://githu
 pallet-contracts = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.30" }
 pallet-contracts-primitives = { version = "6.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.30" }
 pallet-contracts-rpc-runtime-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.30" }
+pallet-multisig = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.30" }
+pallet-utility = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.30" }
 
 # Used for the node template's RPCs
 frame-system-rpc-runtime-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.30" }
@@ -97,6 +99,8 @@ std = [
 	"pallet-adoption/std",
 	"pallet-did/std",
 	"pallet-did-rpc-runtime-api/std",
+	"pallet-multisig/std",
+	"pallet-utility/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -111,6 +115,8 @@ runtime-benchmarks = [
 	"pallet-template/runtime-benchmarks",
 	"pallet-adoption/runtime-benchmarks",
 	"pallet-did/runtime-benchmarks",
+	"pallet-multisig/runtime-benchmarks",
+	"pallet-utility/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-try-runtime",
@@ -128,4 +134,6 @@ try-runtime = [
 	"pallet-template/try-runtime",
 	"pallet-adoption/try-runtime",
 	"pallet-did/try-runtime",
+	"pallet-multisig/try-runtime",
+	"pallet-utility/try-runtime",
 ]

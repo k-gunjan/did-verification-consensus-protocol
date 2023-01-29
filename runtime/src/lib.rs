@@ -31,7 +31,7 @@ pub use frame_support::{
 	dispatch::DispatchClass,
 	parameter_types,
 	traits::{
-		ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, KeyOwnerProofSystem, Nothing,
+		ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, ConstU16, KeyOwnerProofSystem, Nothing,
 		Randomness, StorageInfo,
 	},
 	weights::{
@@ -341,6 +341,30 @@ impl pallet_sudo::Config for Runtime {
 	type RuntimeCall = RuntimeCall;
 }
 
+impl pallet_utility::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeCall = RuntimeCall;
+	type PalletsOrigin = OriginCaller;
+	type WeightInfo = pallet_utility::weights::SubstrateWeight<Runtime>;
+}
+
+parameter_types! {
+	// One storage item; key size is 32; value is size 4+4+16+32 bytes = 56 bytes.
+	pub const DepositBase: Balance = deposit(1, 88);
+	// Additional storage item size of 32 bytes.
+	pub const DepositFactor: Balance = deposit(0, 32);
+}
+
+impl pallet_multisig::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeCall = RuntimeCall;
+	type Currency = Balances;
+	type DepositBase = DepositBase;
+	type DepositFactor = DepositFactor;
+	type MaxSignatories = ConstU16<100>;
+	type WeightInfo = pallet_multisig::weights::SubstrateWeight<Runtime>;
+}
+
 /// Configure the pallet-template in pallets/template.
 impl pallet_template::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
@@ -388,11 +412,13 @@ construct_runtime!(
 		Balances: pallet_balances,
 		TransactionPayment: pallet_transaction_payment,
 		Sudo: pallet_sudo,
+		Utility: pallet_utility,
+		Multisig: pallet_multisig,
 		Contracts: pallet_contracts,
 		// Include the custom logic from the pallet-template in the runtime.
 		TemplateModule: pallet_template,
 		AdoptionModule: pallet_adoption,
-		DIDModule: pallet_did,
+		DidModule: pallet_did,
 	}
 );
 
@@ -440,9 +466,11 @@ mod benches {
 		[pallet_balances, Balances]
 		[pallet_timestamp, Timestamp]
 		[pallet_template, TemplateModule]
+		[pallet_utility, Utility]
+		[pallet_multisig, Multisig]
 		[pallet_contracts, Contracts]
 		[pallet_adoption, AdoptionModule]
-		[pallet_did, DIDModule]
+		[pallet_did, DidModule]
 	);
 }
 
@@ -619,11 +647,11 @@ impl_runtime_apis! {
 			did: AccountId,
 			name: Vec<u8>,
 		) -> Option<Attribute<BlockNumber, Moment>> {
-			DIDModule::read_attribute(&did, &name)
+			DidModule::read_attribute(&did, &name)
 		}
 
 		fn get_a_fixed_value(i:u32, j:u32) -> u32 {
-			DIDModule::get_a_value(i,j)
+			DidModule::get_a_value(i,j)
 		}
 	}
 
