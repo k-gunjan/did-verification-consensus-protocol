@@ -6,7 +6,7 @@
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-use codec::Decode;
+use codec::{Decode, Encode};
 use pallet_grandpa::{
 	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
@@ -17,9 +17,10 @@ use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	curve::PiecewiseLinear,
 	traits::{
-		AccountIdLookup, BlakeTwo256, Block as BlockT, NumberFor, IdentifyAccount, Verify, 
-		OpaqueKeys,
+		self, AccountIdLookup, BlakeTwo256, Block as BlockT, NumberFor, IdentifyAccount, Verify, 
+		OpaqueKeys, SaturatedConversion, StaticLookup,
 	},
+	generic::Era,
 	transaction_validity::{TransactionSource, TransactionValidity, TransactionPriority},
 	ApplyExtrinsicResult, FixedPointNumber, Perbill, Perquintill, MultiSignature,
 };
@@ -54,6 +55,8 @@ use frame_system::EnsureRoot;
 use frame_election_provider_support::{
 	onchain, BalancingConfig, ElectionDataProvider, SequentialPhragmen, VoteWeight,
 };
+
+use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_election_provider_multi_phase::SolutionAccuracyOf;
 use pallet_session::historical::{self as pallet_session_historical};
 pub use pallet_balances::Call as BalancesCall;
@@ -121,6 +124,7 @@ pub mod opaque {
 		pub struct SessionKeys {
 			pub babe: Babe,
 			pub grandpa: Grandpa,
+			pub im_online: ImOnline,
 		}
 	}
 }
@@ -281,8 +285,7 @@ impl pallet_authorship::Config for Runtime {
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
 	type UncleGenerations = UncleGenerations;
 	type FilterUncle = ();
-	// type EventHandler = (Staking, ImOnline);
-	type EventHandler = Staking;
+	type EventHandler = (Staking, ImOnline);
 }
 
 parameter_types! {
@@ -582,14 +585,6 @@ impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
 	}
 }
 
-impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
-where
-	RuntimeCall: From<C>,
-{
-	type Extrinsic = UncheckedExtrinsic;
-	type OverarchingCall = RuntimeCall;
-}
-
 // type EnsureRootOrHalfCouncil = EitherOfDiverse<
 // 	EnsureRoot<AccountId>,
 // 	pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>,
@@ -776,6 +771,81 @@ impl pallet_offences::Config for Runtime {
 	type OnOffenceHandler = Staking;
 }
 
+parameter_types! {
+	pub const ImOnlineUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+	pub const MaxKeys: u32 = 10_000;
+	pub const MaxPeerInHeartbeats: u32 = 10_000;
+	pub const MaxPeerDataEncodingSize: u32 = 1_000;
+}
+
+impl frame_system::offchain::SigningTypes for Runtime {
+	type Public = <Signature as traits::Verify>::Signer;
+	type Signature = Signature;
+}
+
+impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
+where
+	RuntimeCall: From<LocalCall>,
+{
+	fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
+		call: RuntimeCall,
+		public: <Signature as traits::Verify>::Signer,
+		account: AccountId,
+		nonce: Index,
+	) -> Option<(RuntimeCall, <UncheckedExtrinsic as traits::Extrinsic>::SignaturePayload)> {
+		let tip = 0;
+		// take the biggest period possible.
+		let period =
+			BlockHashCount::get().checked_next_power_of_two().map(|c| c / 2).unwrap_or(2) as u64;
+		let current_block = System::block_number()
+			.saturated_into::<u64>()
+			// The `System::block_number` is initialized with `n+1`,
+			// so the actual block number is `n`.
+			.saturating_sub(1);
+		let era = Era::mortal(period, current_block);
+		let extra = (
+			frame_system::CheckNonZeroSender::<Runtime>::new(),
+			frame_system::CheckSpecVersion::<Runtime>::new(),
+			frame_system::CheckTxVersion::<Runtime>::new(),
+			frame_system::CheckGenesis::<Runtime>::new(),
+			frame_system::CheckEra::<Runtime>::from(era),
+			frame_system::CheckNonce::<Runtime>::from(nonce),
+			frame_system::CheckWeight::<Runtime>::new(),
+			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
+		);
+		let raw_payload = SignedPayload::new(call, extra)
+			.map_err(|e| {
+				log::warn!("Unable to create signed payload: {:?}", e);
+			})
+			.ok()?;
+		let signature = raw_payload.using_encoded(|payload| C::sign(payload, public))?;
+		let address = AccountIdLookup::unlookup(account);
+		let (call, extra, _) = raw_payload.deconstruct();
+		Some((call, (address, signature.into(), extra)))
+	}
+}
+
+impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
+where
+	RuntimeCall: From<C>,
+{
+	type Extrinsic = UncheckedExtrinsic;
+	type OverarchingCall = RuntimeCall;
+}
+
+impl pallet_im_online::Config for Runtime {
+	type AuthorityId = ImOnlineId;
+	type RuntimeEvent = RuntimeEvent;
+	type NextSessionRotation = Babe;
+	type ValidatorSet = Historical;
+	type ReportUnresponsiveness = Offences;
+	type UnsignedPriority = ImOnlineUnsignedPriority;
+	type WeightInfo = pallet_im_online::weights::SubstrateWeight<Runtime>;
+	type MaxKeys = MaxKeys;
+	type MaxPeerInHeartbeats = MaxPeerInHeartbeats;
+	type MaxPeerDataEncodingSize = MaxPeerDataEncodingSize;
+}
+
 /// Configure the pallet-template in pallets/template.
 impl pallet_template::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
@@ -835,6 +905,7 @@ construct_runtime!(
 		Mmr: pallet_mmr,
 		Sudo: pallet_sudo,
 		Offences: pallet_offences,
+		ImOnline: pallet_im_online,
 		Multisig: pallet_multisig,
 		Contracts: pallet_contracts,
 		// Include the custom logic from the pallet-template in the runtime.
@@ -900,6 +971,7 @@ mod benches {
 		[pallet_timestamp, Timestamp]
 		[pallet_elections_phragmen, Elections]
 		[pallet_mmr, Mmr]
+		[pallet_im_online, ImOnline]
 		[pallet_offences, OffencesBench::<Runtime>]
 		[pallet_template, TemplateModule]
 		[pallet_utility, Utility]
@@ -967,16 +1039,6 @@ impl_runtime_apis! {
 			Executive::offchain_worker(header)
 		}
 	}
-
-	// impl sp_consensus_aura::AuraApi<Block, AuraId> for Runtime {
-	// 	fn slot_duration() -> sp_consensus_aura::SlotDuration {
-	// 		sp_consensus_aura::SlotDuration::from_millis(Aura::slot_duration())
-	// 	}
-
-	// 	fn authorities() -> Vec<AuraId> {
-	// 		Aura::authorities().into_inner()
-	// 	}
-	// }
 
 	impl sp_consensus_babe::BabeApi<Block> for Runtime {
 		fn configuration() -> sp_consensus_babe::BabeConfiguration {
