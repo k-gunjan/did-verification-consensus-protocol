@@ -1865,6 +1865,7 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
  "pallet-adoption",
+ "pallet-authorship",
  "pallet-babe",
  "pallet-bags-list",
  "pallet-balances",
