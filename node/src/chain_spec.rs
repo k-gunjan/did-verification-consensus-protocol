@@ -1,7 +1,7 @@
 use felidae_node_runtime::{
 	AccountId, BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig, SudoConfig, 
 	Signature, ElectionsConfig, ImOnlineConfig, DemocracyConfig, CouncilConfig, 
-	TechnicalCommitteeConfig, wasm_binary_unwrap,
+	TechnicalCommitteeConfig, wasm_binary_unwrap, AuthorityDiscoveryConfig,
 	SystemConfig, WASM_BINARY, BABE_GENESIS_EPOCH_CONFIG, SessionConfig, StakingConfig,
 	opaque::SessionKeys, MaxNominations, StakerStatus, constants::currency::*,
 };
@@ -14,6 +14,7 @@ use sp_consensus_babe::AuthorityId as BabeId;
 use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public};
 use sp_finality_grandpa::AuthorityId as GrandpaId;
 use sc_telemetry::TelemetryEndpoints;
+use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 
 use sp_runtime::{
 	traits::{IdentifyAccount, Verify},
@@ -29,11 +30,12 @@ pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig>;
 type AccountPublic = <Signature as Verify>::Signer;
 
 fn session_keys(
-	babe: BabeId,
 	grandpa: GrandpaId,
+	babe: BabeId,
 	im_online: ImOnlineId,
+	authority_discovery: AuthorityDiscoveryId,
 ) -> SessionKeys {
-	SessionKeys { babe, grandpa, im_online }
+	SessionKeys { babe, grandpa, im_online, authority_discovery }
 }
 
 fn staging_testnet_config_genesis() -> GenesisConfig {
@@ -52,6 +54,7 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 		GrandpaId,
 		BabeId,
 		ImOnlineId,
+		AuthorityDiscoveryId,
 	)> = vec![
 		(
 			// 5Fbsd6WXDGiLTxunqeK5BATNiocfCqu9bS1yArVjCgeBLkVy
@@ -60,6 +63,9 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			array_bytes::hex_n_into_unchecked("781ead1e2fa9ccb74b44c19d29cb2a7a4b5be3972927ae98cd3877523976a276"),
 			// 5Fb9ayurnxnaXj56CjmyQLBiadfRCqUbL2VWNbbe1nZU6wiC
 			array_bytes::hex2array_unchecked("9becad03e6dcac03cee07edebca5475314861492cdfc96a2144a67bbe9699332")
+				.unchecked_into(),
+			// 5EZaeQ8djPcq9pheJUhgerXQZt9YaHnMJpiHMRhwQeinqUW8
+			array_bytes::hex2array_unchecked("6e7e4eb42cbd2e0ab4cae8708ce5509580b8c04d11f6758dbf686d50fe9f9106")
 				.unchecked_into(),
 			// 5EZaeQ8djPcq9pheJUhgerXQZt9YaHnMJpiHMRhwQeinqUW8
 			array_bytes::hex2array_unchecked("6e7e4eb42cbd2e0ab4cae8708ce5509580b8c04d11f6758dbf686d50fe9f9106")
@@ -82,6 +88,9 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			// 5DhLtiaQd1L1LU9jaNeeu9HJkP6eyg3BwXA7iNMzKm7qqruQ
 			array_bytes::hex2array_unchecked("482dbd7297a39fa145c570552249c2ca9dd47e281f0c500c971b59c9dcdcd82e")
 				.unchecked_into(),
+			// 5DhLtiaQd1L1LU9jaNeeu9HJkP6eyg3BwXA7iNMzKm7qqruQ
+			array_bytes::hex2array_unchecked("482dbd7297a39fa145c570552249c2ca9dd47e281f0c500c971b59c9dcdcd82e")
+				.unchecked_into(),
 		),
 		(
 			// 5DyVtKWPidondEu8iHZgi6Ffv9yrJJ1NDNLom3X9cTDi98qp
@@ -90,6 +99,9 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			array_bytes::hex_n_into_unchecked("9e42241d7cd91d001773b0b616d523dd80e13c6c2cab860b1234ef1b9ffc1526"),
 			// 5E1jLYfLdUQKrFrtqoKgFrRvxM3oQPMbf6DfcsrugZZ5Bn8d
 			array_bytes::hex2array_unchecked("5633b70b80a6c8bb16270f82cca6d56b27ed7b76c8fd5af2986a25a4788ce440")
+				.unchecked_into(),
+			// 5DhKqkHRkndJu8vq7pi2Q5S3DfftWJHGxbEUNH43b46qNspH
+			array_bytes::hex2array_unchecked("482a3389a6cf42d8ed83888cfd920fec738ea30f97e44699ada7323f08c3380a")
 				.unchecked_into(),
 			// 5DhKqkHRkndJu8vq7pi2Q5S3DfftWJHGxbEUNH43b46qNspH
 			array_bytes::hex2array_unchecked("482a3389a6cf42d8ed83888cfd920fec738ea30f97e44699ada7323f08c3380a")
@@ -112,6 +124,9 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 			// 5C4vDQxA8LTck2xJEy4Yg1hM9qjDt4LvTQaMo4Y8ne43aU6x
 			array_bytes::hex2array_unchecked("00299981a2b92f878baaf5dbeba5c18d4e70f2a1fcd9c61b32ea18daf38f4378")
 				.unchecked_into(),
+			// 5C4vDQxA8LTck2xJEy4Yg1hM9qjDt4LvTQaMo4Y8ne43aU6x
+			array_bytes::hex2array_unchecked("00299981a2b92f878baaf5dbeba5c18d4e70f2a1fcd9c61b32ea18daf38f4378")
+				.unchecked_into(),
 		),
 	];
 
@@ -125,7 +140,6 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 
 	testnet_genesis(initial_authorities, vec![], root_key, Some(endowed_accounts))
 }
-
 /// Staging testnet config.
 pub fn staging_testnet_config() -> ChainSpec {
 	let boot_nodes = vec![];
@@ -164,13 +178,14 @@ where
 /// Helper function to generate stash, controller and session key from seed
 pub fn authority_keys_from_seed(
 	seed: &str,
-) -> (AccountId, AccountId, GrandpaId, BabeId, ImOnlineId) {
+) -> (AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId) {
 	(
 		get_account_id_from_seed::<sr25519::Public>(&format!("{}//stash", seed)),
 		get_account_id_from_seed::<sr25519::Public>(seed),
 		get_from_seed::<GrandpaId>(seed),
 		get_from_seed::<BabeId>(seed),
 		get_from_seed::<ImOnlineId>(seed),
+		get_from_seed::<AuthorityDiscoveryId>(seed),
 	)
 }
 
@@ -182,6 +197,7 @@ pub fn testnet_genesis(
 		GrandpaId,
 		BabeId,
 		ImOnlineId,
+		AuthorityDiscoveryId,
 	)>,
 	initial_nominators: Vec<AccountId>,
 	root_key: AccountId,
@@ -250,7 +266,7 @@ pub fn testnet_genesis(
 					(
 						x.0.clone(),
 						x.0.clone(),
-						session_keys(x.3.clone(), x.2.clone(), x.4.clone()),
+						session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone()),
 					)
 				})
 				.collect::<Vec<_>>(),
@@ -287,6 +303,7 @@ pub fn testnet_genesis(
 			epoch_config: Some(felidae_node_runtime::BABE_GENESIS_EPOCH_CONFIG),
 		},
 		im_online: ImOnlineConfig { keys: vec![] },
+		authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },
 		grandpa: GrandpaConfig { authorities: vec![] },
 		technical_membership: Default::default(),
 		treasury: Default::default(),
