@@ -328,8 +328,6 @@ impl OnUnbalanced<NegativeImbalance> for Author {
 	}
 }
 
-
-
 parameter_types! {
 	// NOTE: Currently it is not possible to change the epoch duration after the chain has started.
 	//       Attempting to do so will brick block production.

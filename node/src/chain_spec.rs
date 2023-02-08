@@ -1,20 +1,20 @@
 use felidae_node_runtime::{
 	AccountId, BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig, SudoConfig, 
 	Signature, ElectionsConfig, ImOnlineConfig, DemocracyConfig, CouncilConfig, 
-	TechnicalCommitteeConfig, wasm_binary_unwrap, AuthorityDiscoveryConfig,
-	SystemConfig, WASM_BINARY, BABE_GENESIS_EPOCH_CONFIG, SessionConfig, StakingConfig,
+	TechnicalCommitteeConfig, wasm_binary_unwrap, AuthorityDiscoveryConfig, Block,
+	SystemConfig, SessionConfig, StakingConfig,
 	opaque::SessionKeys, MaxNominations, StakerStatus, constants::currency::*,
 };
 
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sc_service::ChainType;
-// use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_consensus_babe::AuthorityId as BabeId;
-// use sp_core::{sr25519, Pair, Public};
 use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public};
 use sp_finality_grandpa::AuthorityId as GrandpaId;
 use sc_telemetry::TelemetryEndpoints;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
+use serde::{Deserialize, Serialize};
+use sc_chain_spec::ChainSpecExtension;
 
 use sp_runtime::{
 	traits::{IdentifyAccount, Verify},
@@ -24,8 +24,23 @@ use sp_runtime::{
 // The URL for the telemetry server.
 const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 
+/// Node `ChainSpec` extensions.
+///
+/// Additional parameters for some Substrate core modules,
+/// customizable from the chain spec.
+#[derive(Default, Clone, Serialize, Deserialize, ChainSpecExtension)]
+#[serde(rename_all = "camelCase")]
+pub struct Extensions {
+	/// Block numbers with known hashes.
+	pub fork_blocks: sc_client_api::ForkBlocks<Block>,
+	/// Known bad block hashes.
+	pub bad_blocks: sc_client_api::BadBlocks<Block>,
+	/// The light sync state extension used by the sync-state rpc.
+	pub light_sync_state: sc_sync_state_rpc::LightSyncStateExtension,
+}
+
 /// Specialized `ChainSpec`.
-pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig>;
+pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig, Extensions>;
 
 type AccountPublic = <Signature as Verify>::Signer;
 
