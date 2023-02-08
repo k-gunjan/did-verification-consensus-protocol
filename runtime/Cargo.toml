@@ -60,6 +60,7 @@ pallet-offences = { version = "4.0.0-dev", default-features = false, git = "http
 pallet-offences-benchmarking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", optional = true, branch = "polkadot-v0.9.30" }
 pallet-im-online = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", optional = true, branch = "polkadot-v0.9.30" }
 pallet-authority-discovery = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", optional = true, branch = "polkadot-v0.9.30" }
+sp-authority-discovery = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", optional = true, branch = "polkadot-v0.9.30" }
 
 # Governance pallets
 pallet-scheduler = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", optional = true, branch = "polkadot-v0.9.30" }
@@ -147,6 +148,7 @@ std = [
 	"pallet-mmr/std",
 	"pallet-offences/std",
 	"pallet-offences-benchmarking?/std",
+	"sp-authority-discovery/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

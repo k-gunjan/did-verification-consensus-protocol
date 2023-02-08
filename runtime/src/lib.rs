@@ -67,6 +67,7 @@ use frame_election_provider_support::{
 	onchain, BalancingConfig, ElectionDataProvider, SequentialPhragmen, VoteWeight,
 };
 
+use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_election_provider_multi_phase::SolutionAccuracyOf;
 use pallet_session::historical::{self as pallet_session_historical};
@@ -136,6 +137,7 @@ pub mod opaque {
 			pub babe: Babe,
 			pub grandpa: Grandpa,
 			pub im_online: ImOnline,
+			pub authority_discovery: AuthorityDiscovery,
 		}
 	}
 }
@@ -1002,6 +1004,10 @@ impl pallet_offences::Config for Runtime {
 	type OnOffenceHandler = Staking;
 }
 
+impl pallet_authority_discovery::Config for Runtime {
+	type MaxAuthorities = MaxAuthorities;
+}
+
 parameter_types! {
 	pub const ImOnlineUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
 	pub const MaxKeys: u32 = 10_000;
@@ -1136,6 +1142,7 @@ construct_runtime!(
 		Mmr: pallet_mmr,
 		Offences: pallet_offences,
 		ImOnline: pallet_im_online,
+		AuthorityDiscovery: pallet_authority_discovery,
 
 		// Governance
 		Scheduler: pallet_scheduler,
@@ -1440,6 +1447,12 @@ impl_runtime_apis! {
 			// defined our key owner proof type as a bottom type (i.e. a type
 			// with no values).
 			None
+		}
+	}
+
+	impl sp_authority_discovery::AuthorityDiscoveryApi<Block> for Runtime {
+		fn authorities() -> Vec<AuthorityDiscoveryId> {
+			AuthorityDiscovery::authorities()
 		}
 	}
 
