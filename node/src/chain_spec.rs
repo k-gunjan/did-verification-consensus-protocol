@@ -1,6 +1,7 @@
 use felidae_node_runtime::{
 	AccountId, BabeConfig, BalancesConfig, GenesisConfig, GrandpaConfig, SudoConfig, 
-	Signature, ElectionsConfig, ImOnlineConfig,
+	Signature, ElectionsConfig, ImOnlineConfig, DemocracyConfig, CouncilConfig, 
+	TechnicalCommitteeConfig,
 	SystemConfig, WASM_BINARY, BABE_GENESIS_EPOCH_CONFIG, SessionConfig, StakingConfig,
 	opaque::SessionKeys, MaxNominations, StakerStatus, constants::currency::*,
 };
@@ -182,7 +183,7 @@ fn testnet_genesis(
 			}
 		});
 
-	let num_endowed_accounts = endowed_accounts.len();
+	let _num_endowed_accounts = endowed_accounts.len();
 	
 	// stakers: all validators and nominators.
 	const ENDOWMENT: Balance = 10_000_000 * DOLLARS;
@@ -205,7 +206,8 @@ fn testnet_genesis(
 		}))
 		.collect::<Vec<_>>();
 
-
+		let num_endowed_accounts = endowed_accounts.len();
+	
 
 	GenesisConfig {
 		system: SystemConfig {
@@ -255,6 +257,18 @@ fn testnet_genesis(
 			authorities: vec![],
 		},
 		im_online: ImOnlineConfig { keys: vec![] },
+		democracy: DemocracyConfig::default(),
+		council: CouncilConfig::default(),
+		technical_committee: TechnicalCommitteeConfig {
+			members: endowed_accounts
+				.iter()
+				.take((num_endowed_accounts + 1) / 2)
+				.cloned()
+				.collect(),
+			phantom: Default::default(),
+		},
+		technical_membership: Default::default(),
+		treasury: Default::default(),
 		sudo: SudoConfig {
 			// Assign network admin rights.
 			key: Some(root_key),
