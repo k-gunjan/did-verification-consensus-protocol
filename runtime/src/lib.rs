@@ -24,15 +24,17 @@ use sp_api::impl_runtime_apis;
 // use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::{
-	create_runtime_str, generic, impl_opaque_keys,
+	create_runtime_str,
 	curve::PiecewiseLinear,
-	traits::{
-		self, AccountIdLookup, BlakeTwo256, Block as BlockT, NumberFor, IdentifyAccount, Verify, 
-		OpaqueKeys, SaturatedConversion, StaticLookup,
-	},
+	generic,
 	generic::Era,
-	transaction_validity::{TransactionSource, TransactionValidity, TransactionPriority},
-	ApplyExtrinsicResult, FixedPointNumber, Perbill, Percent, Permill, Perquintill, MultiSignature,
+	impl_opaque_keys,
+	traits::{
+		self, AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor,
+		OpaqueKeys, SaturatedConversion, StaticLookup, Verify,
+	},
+	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
+	ApplyExtrinsicResult, FixedPointNumber, MultiSignature, Perbill, Percent, Permill, Perquintill,
 };
 use sp_std::prelude::*;
 #[cfg(feature = "std")]
@@ -47,16 +49,16 @@ pub use frame_system::Call as SystemCall;
 pub use frame_support::{
 	construct_runtime,
 	dispatch::DispatchClass,
-	parameter_types,
 	pallet_prelude::Get,
+	parameter_types,
 	traits::{
-		ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, ConstU16, KeyOwnerProofSystem, Randomness,
-		LockIdentifier, Nothing, StorageInfo, U128CurrencyToVote, EitherOfDiverse, EqualPrivilegeOnly,
-		Imbalance, Currency, OnUnbalanced, 
+		ConstBool, ConstU128, ConstU16, ConstU32, ConstU64, ConstU8, Currency, EitherOfDiverse,
+		EqualPrivilegeOnly, Imbalance, KeyOwnerProofSystem, LockIdentifier, Nothing, OnUnbalanced,
+		Randomness, StorageInfo, U128CurrencyToVote,
 	},
 	weights::{
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
-		IdentityFee, Weight
+		IdentityFee, Weight,
 	},
 	PalletId, StorageValue,
 };
@@ -67,13 +69,13 @@ use frame_election_provider_support::{
 	onchain, BalancingConfig, ElectionDataProvider, SequentialPhragmen, VoteWeight,
 };
 
-use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
-use pallet_election_provider_multi_phase::SolutionAccuracyOf;
-use pallet_session::historical::{self as pallet_session_historical};
 pub use pallet_balances::Call as BalancesCall;
+use pallet_election_provider_multi_phase::SolutionAccuracyOf;
+use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
+use pallet_session::historical::{self as pallet_session_historical};
 pub use pallet_timestamp::Call as TimestampCall;
-use pallet_transaction_payment::{TargetedFeeAdjustment, CurrencyAdapter, Multiplier};
+use pallet_transaction_payment::{CurrencyAdapter, Multiplier, TargetedFeeAdjustment};
+use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 // pub use sp_runtime::BuildStorage;
 
 #[cfg(any(feature = "std", test))]
@@ -88,7 +90,7 @@ pub use pallet_adoption;
 ///import the did pallet.
 pub use pallet_did;
 
-use pallet_did::types::Attribute;
+// use pallet_did::types::Attribute;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -178,7 +180,6 @@ pub const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);
 pub const HOURS: BlockNumber = MINUTES * 60;
 pub const DAYS: BlockNumber = HOURS * 24;
 
-
 // NOTE: Currently it is not possible to change the epoch duration after the chain has started.
 //       Attempting to do so will brick block production.
 pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 10 * MINUTES;
@@ -197,8 +198,6 @@ pub const BABE_GENESIS_EPOCH_CONFIG: sp_consensus_babe::BabeEpochConfiguration =
 		c: PRIMARY_PROBABILITY,
 		allowed_slots: sp_consensus_babe::AllowedSlots::PrimaryAndSecondaryPlainSlots,
 	};
-
-
 
 // Contracts price units.
 pub const MILLICENTS: Balance = 1_000_000_000;
@@ -356,7 +355,7 @@ impl pallet_babe::Config for Runtime {
 		pallet_babe::AuthorityId,
 	)>>::IdentificationTuple;
 
-	type HandleEquivocation = 
+	type HandleEquivocation =
 		pallet_babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences, ReportLongevity>;
 
 	type WeightInfo = ();
@@ -749,7 +748,7 @@ impl pallet_staking::Config for Runtime {
 	type CurrencyToVote = U128CurrencyToVote;
 	type RewardRemainder = Treasury; // TODO
 	type RuntimeEvent = RuntimeEvent;
-	type Slash = Treasury;  // TODO send the slashed funds to the treasury.
+	type Slash = Treasury; // TODO send the slashed funds to the treasury.
 	type Reward = (); // rewards are minted from the void
 	type SessionsPerEra = SessionsPerEra;
 	type BondingDuration = BondingDuration;
@@ -799,8 +798,8 @@ impl pallet_elections_phragmen::Config for Runtime {
 	type PalletId = ElectionsPhragmenPalletId;
 	type Currency = Balances;
 	type ChangeMembers = (); //TODO Council
-	// NOTE: this implies that council's genesis members cannot be set directly and must come from
-	// this module.
+						 // NOTE: this implies that council's genesis members cannot be set directly and must come from
+						 // this module.
 	type InitializeMembers = (); // TODO Council
 	type CurrencyToVote = U128CurrencyToVote;
 	type CandidacyBond = CandidacyBond;
@@ -815,7 +814,6 @@ impl pallet_elections_phragmen::Config for Runtime {
 	type MaxCandidates = MaxCandidates;
 	type WeightInfo = pallet_elections_phragmen::weights::SubstrateWeight<Runtime>;
 }
-
 
 parameter_types! {
 	// phase durations. 1/4 of the last session for each.
@@ -1378,6 +1376,7 @@ impl pallet_adoption::Config for Runtime {
 impl pallet_did::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Time = Timestamp;
+	type WeightInfo = pallet_did::weights::SubstrateWeight<Runtime>;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
@@ -1481,10 +1480,14 @@ mod benches {
 		[frame_benchmarking, BaselineBench::<Runtime>]
 		[frame_system, SystemBench::<Runtime>]
 		[pallet_babe, Babe]
+		[pallet_bags_list, VoterBagsList]
 		[pallet_balances, Balances]
 		[pallet_timestamp, Timestamp]
+		[pallet_collective, Council]
 		[pallet_elections_phragmen, Elections]
+		[pallet_election_provider_support_benchmarking, EPSBench::<Runtime>]
 		[pallet_scheduler, Scheduler]
+		[pallet_session, SessionBench::<Runtime>]
 		[pallet_treasury, Treasury]
 		[pallet_democracy, Democracy]
 		[pallet_collective, Council]
@@ -1774,24 +1777,24 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_did_rpc_runtime_api::ReadAttributeApi<
-	Block,
-	AccountId,
-	BlockNumber,
-	Moment,
-	> for Runtime
-	{
-		fn read_attribute(
-			did: AccountId,
-			name: Vec<u8>,
-		) -> Option<Attribute<BlockNumber, Moment>> {
-			DidModule::read_attribute(&did, &name)
-		}
+	// impl pallet_did_rpc_runtime_api::ReadAttributeApi<
+	// Block,
+	// AccountId,
+	// BlockNumber,
+	// Moment,
+	// > for Runtime
+	// {
+	// 	fn read_attribute(
+	// 		did: AccountId,
+	// 		name: Vec<u8>,
+	// 	) -> Option<Attribute<BlockNumber, Moment>> {
+	// 		DidModule::read_attribute(&did, &name)
+	// 	}
 
-		fn get_a_fixed_value(i:u32, j:u32) -> u32 {
-			DidModule::get_a_value(i,j)
-		}
-	}
+	// 	fn get_a_fixed_value(i:u32, j:u32) -> u32 {
+	// 		DidModule::get_a_value(i,j)
+	// 	}
+	// }
 
 	impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance> for Runtime {
 		fn query_info(
@@ -1842,11 +1845,11 @@ impl_runtime_apis! {
 		fn benchmark_metadata(extra: bool) -> (
 			Vec<frame_benchmarking::BenchmarkList>,
 			Vec<frame_support::traits::StorageInfo>,
-		) {	
+		) {
 			// Trying to add benchmarks directly to the Session Pallet caused cyclic dependency
 			// issues. To get around that, we separated the Session benchmarks into its own crate,
 			// which is why we need these two lines below.
-			// use pallet_session_benchmarking::Pallet as SessionBench;
+			use pallet_session_benchmarking::Pallet as SessionBench;
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
 			use pallet_election_provider_support_benchmarking::Pallet as EPSBench;
 			use frame_benchmarking::{baseline, Benchmarking, BenchmarkList};
@@ -1855,7 +1858,14 @@ impl_runtime_apis! {
 			use baseline::Pallet as BaselineBench;
 
 			let mut list = Vec::<BenchmarkList>::new();
-			list_benchmarks!(list, extra);
+			// list_benchmarks!(list, extra);
+
+			list_benchmark!(list, extra, frame_system, SystemBench::<Runtime>);
+			list_benchmark!(list, extra, pallet_balances, Balances);
+			list_benchmark!(list, extra, pallet_timestamp, Timestamp);
+			list_benchmark!(list, extra, pallet_multisig, Multisig);
+			list_benchmark!(list, extra, pallet_did, DidModule);
+
 
 			let storage_info = AllPalletsWithSystem::storage_info();
 
@@ -1895,7 +1905,13 @@ impl_runtime_apis! {
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);
-			add_benchmarks!(params, batches);
+			// add_benchmarks!(params, batches);
+
+			add_benchmark!(params, batches, frame_system, SystemBench::<Runtime>);
+			add_benchmark!(params, batches, pallet_balances, Balances);
+			add_benchmark!(params, batches, pallet_timestamp, Timestamp);
+			add_benchmark!(params, batches, pallet_multisig, Multisig);
+			add_benchmark!(params, batches, pallet_did, DidModule);
 
 			Ok(batches)
 		}

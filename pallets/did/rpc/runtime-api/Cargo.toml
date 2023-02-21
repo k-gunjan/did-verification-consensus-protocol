@@ -1,13 +1,8 @@
 [package]
 name = "pallet-did-rpc-runtime-api"
 version = "1.0.0"
-authors = ["K Gunjan <gunjan.cn@gmail.com>"]
+authors = ["<felidae-team>"]
 edition = "2021"
-license = "Apache-2.0"
-homepage = "https://substrate.io"
-repository = "https://github.com/paritytech/substrate/"
-description = "RPC runtime API for transaction payment FRAME pallet"
-readme = "README.md"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]

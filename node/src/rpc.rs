@@ -7,7 +7,7 @@
 
 use std::sync::Arc;
 
-use felidae_node_runtime::{opaque::Block, AccountId, Balance, Index, BlockNumber, Hash};
+use felidae_node_runtime::{opaque::Block, AccountId, Balance, BlockNumber, Hash, Index};
 use jsonrpsee::RpcModule;
 use sc_client_api::AuxStore;
 use sc_consensus_babe::{BabeConfiguration, Epoch};

@@ -5,17 +5,17 @@ use felidae_node_runtime::{self, opaque::Block, RuntimeApi};
 pub use sc_executor::NativeElseWasmExecutor;
 // use sc_finality_grandpa::SharedVoterState;
 // use sc_keystore::LocalKeystore;
-use sc_service::{error::Error as ServiceError, Configuration, TaskManager, RpcHandlers};
+use sc_service::{error::Error as ServiceError, Configuration, RpcHandlers, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 // use sp_consensus_aura::sr25519::AuthorityPair as AuraPair;
 // use std::{sync::Arc, time::Duration};
-use std::sync::Arc;
-use sp_runtime::traits::Block as BlockT;
-use sc_network::NetworkService;
-use sc_consensus_babe::{self, SlotProportion};
-use sc_rpc_api::DenyUnsafe;
+use crate::rpc::{create_full, BabeDeps, FullDeps, GrandpaDeps};
 use sc_client_api::BlockBackend;
-use crate::rpc::{FullDeps, BabeDeps, GrandpaDeps, create_full};
+use sc_consensus_babe::{self, SlotProportion};
+use sc_network::NetworkService;
+use sc_rpc_api::DenyUnsafe;
+use sp_runtime::traits::Block as BlockT;
+use std::sync::Arc;
 // Our native executor instance.
 pub struct ExecutorDispatch;
 
@@ -345,7 +345,6 @@ pub fn new_partial(
 	})
 }
 
-
 /// Result of [`new_full_base`].
 pub struct NewFullBase {
 	/// The task manager of the node.
@@ -400,7 +399,7 @@ pub fn new_full_base(
 	// }
 
 	let shared_voter_state = rpc_setup;
-	
+
 	// let auth_disc_publish_non_global_ips = config.network.allow_non_globals_in_dht;
 	let grandpa_protocol_name = sc_finality_grandpa::protocol_standard_name(
 		&client.block_hash(0).ok().flatten().expect("Genesis block exists; qed"),
@@ -498,13 +497,12 @@ pub fn new_full_base(
 		}
 	}
 
-
 	// if role.is_authority() {
 	// 	let proposer_factory = sc_basic_authorship::ProposerFactory::new(
-		let (block_import, grandpa_link, babe_link) = import_setup;
-		(with_startup_data)(&block_import, &babe_link);
+	let (block_import, grandpa_link, babe_link) = import_setup;
+	(with_startup_data)(&block_import, &babe_link);
 
-		if let sc_service::config::Role::Authority { .. } = &role {
+	if let sc_service::config::Role::Authority { .. } = &role {
 		let proposer = sc_basic_authorship::ProposerFactory::new(
 			task_manager.spawn_handle(),
 			client.clone(),
@@ -543,7 +541,7 @@ pub fn new_full_base(
 							slot_duration,
 						);
 
-						let storage_proof =
+					let storage_proof =
 						sp_transaction_storage_proof::registration::new_data_provider(
 							&*client_clone,
 							&parent,
@@ -593,7 +591,7 @@ pub fn new_full_base(
 		// been tested extensively yet and having most nodes in a network run it
 		// could lead to finality stalls.
 		let grandpa_config = sc_finality_grandpa::GrandpaParams {
-			config: config,
+			config,
 			link: grandpa_link,
 			network: network.clone(),
 			voting_rule: sc_finality_grandpa::VotingRulesBuilder::default().build(),
@@ -614,4 +612,3 @@ pub fn new_full_base(
 	network_starter.start_network();
 	Ok(NewFullBase { task_manager, client, network, transaction_pool, rpc_handlers })
 }
-

@@ -1,8 +1,10 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-/// Based on pallet-DID from https://github.com/substrate-developer-hub/pallet-did
-/// Learn more about FRAME and the core library of Substrate FRAME pallets:
-/// <https://substrate.dev/docs/en/knowledgebase/runtime/frame>
+//! DID compliant: https://w3c-ccg.github.io/did-spec/
+//! Based on pallet-DID from https://github.com/substrate-developer-hub/pallet-did
+//! Learn more about FRAME and the core library of Substrate FRAME pallets:
+//! <https://substrate.dev/docs/en/knowledgebase/runtime/frame>
+
 pub use pallet::*;
 pub mod did;
 pub mod types;
@@ -16,411 +18,387 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
+pub mod weights;
+pub use weights::WeightInfo;
+
 #[frame_support::pallet]
 pub mod pallet {
-	use crate::did::Did;
-	pub use crate::types::*;
-
-	use frame_support::{
-		dispatch::DispatchResult,
-		// debug,
-		inherent::Vec,
-		pallet_prelude::*,
-		sp_io::hashing::blake2_256,
+	use super::WeightInfo;
+	use crate::{
+		did::{DidError, *},
+		types::*,
 	};
-	// use runtime_io::{ self };
-	pub use frame_support::traits::Time;
+	use frame_support::pallet_prelude::*;
+	pub use frame_support::traits::Time as MomentTime;
 	use frame_system::pallet_prelude::*;
-	// use sp_io::hashing::blake2_256;
+	use sp_io::hashing::blake2_256;
+	use sp_runtime::traits::{Bounded, CheckedAdd};
+	use sp_std::vec::Vec;
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-		// // type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
-		// type Public: IdentifyAccount<AccountId = Self::AccountId>;
-		// type Signature: Verify<Signer = Self::Public> + Member + Decode + Encode;
-		type Time: Time;
+		type Time: MomentTime;
+		/// Weight information for extrinsics in this pallet.
+		type WeightInfo: WeightInfo;
 	}
 
-	#[pallet::pallet]
-	#[pallet::without_storage_info]
-	#[pallet::generate_store(pub(super) trait Store)]
-	pub struct Pallet<T>(_);
-
-	/// Identity delegates stored by type.
-	/// Delegates are only valid for a specific period defined as blocks number.
-	#[pallet::storage]
-	#[pallet::getter(fn delegate_of)]
-	pub(super) type DelegateOf<T: Config> = StorageMap<
-		//&identity, delegate_type, delegate), &validity)
-		_,
-		Blake2_128Concat,
-		(T::AccountId, Vec<u8>, T::AccountId),
-		T::BlockNumber,
-	>;
-
-	/// The attributes that belong to an identity.
-	#[pallet::storage]
-	#[pallet::getter(fn attribute_of)]
-	pub(super) type AttributeOf<T: Config> = StorageMap<
-		_,
-		Blake2_128Concat,
-		(T::AccountId, [u8; 32]),
-		Attribute<T::BlockNumber, <<T as Config>::Time as Time>::Moment>,
-		ValueQuery,
-	>;
-
-	/// Attribute nonce used to generate a unique hash even if the attribute is deleted and
-	/// recreated.
-	#[pallet::storage]
-	#[pallet::getter(fn nonce_of)]
-	/// Keeps track of adoptions events.
-	pub(super) type AttributeNonce<T: Config> =
-		StorageMap<_, Blake2_128Concat, (T::AccountId, Vec<u8>), u64, ValueQuery>;
-
-	/// Identity owner.
-	#[pallet::storage]
-	#[pallet::getter(fn owner_of)]
-	pub(super) type OwnerStore<T: Config> =
-		StorageMap<_, Blake2_128Concat, T::AccountId, T::AccountId>;
-
-	/// Tracking the latest identity update.
-	#[pallet::storage]
-	#[pallet::getter(fn updated_by)]
-	/// Keeps track of adoptions events.
-	pub(super) type UpdatedBy<T: Config> = StorageMap<
-		_,
-		Blake2_128Concat,
-		T::AccountId,
-		(T::AccountId, T::BlockNumber, <<T as Config>::Time as Time>::Moment),
-	>;
-
 	// Pallets use events to inform users when important changes are made.
-	// https://substrate.dev/docs/en/knowledgebase/runtime/events
+	// Event documentation should end with an array that provides descriptive names for parameters.
+	// https://docs.substrate.io/v3/runtime/events-and-errors
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		AttributeAdded {
-			identity: T::AccountId,
-			name: Vec<u8>,
-			till: Option<T::BlockNumber>,
-		},
-		/// Attribute not found
-		AttributeNotFound {
-			who: T::AccountId,
-			identity: T::AccountId,
-			name: Vec<u8>,
-		},
-		/// Attribute fetched
-		AttributeFetched {
-			who: T::AccountId,
-			identity: T::AccountId,
-			name: Vec<u8>,
-		},
+		/// Event emitted when an attribute has been added. [who, did_account, name, value,
+		/// validity]
+		AttributeAdded(T::AccountId, T::AccountId, Vec<u8>, Vec<u8>, Option<T::BlockNumber>),
+		/// Event emitted when an attribute is read successfully
+		AttributeRead(Attribute<T::BlockNumber, <<T as Config>::Time as MomentTime>::Moment>),
+		/// Event emitted when an attribute has been updated. [who, did_account, name, validity]
+		AttributeUpdated(T::AccountId, T::AccountId, Vec<u8>, Vec<u8>, Option<T::BlockNumber>),
+		/// Event emitted when an attribute has been deleted. [who, did_acount name]
+		AttributeRemoved(T::AccountId, T::AccountId, Vec<u8>),
 	}
 
-	// Errors inform users that something went wrong.
 	#[pallet::error]
 	pub enum Error<T> {
-		NotOwner,
-		InvalidDelegate,
-		BadSignature,
-		AttributeCreationFailed,
-		AttributeResetFailed,
-		AttributeRemovalFailed,
-		InvalidAttribute,
-		Overflow,
-		BadTransaction,
+		// Name is greater that 64
 		AttributeNameExceedMax64,
-		/// error if creating the existing one
-		DuplicateNotNeeded,
-		/// error if atritbute is not found
+		// Attribute already exist
+		AttributeAlreadyExist,
+		// Attribute creation failed
+		AttributeCreationFailed,
+		// Attribute creation failed
+		AttributeUpdateFailed,
+		// Attribute was not found
 		AttributeNotFound,
+		// Dispatch when trying to modify another owner did
+		AttributeAuthorizationFailed,
+		// Dispatch when block number is invalid
+		MaxBlockNumberExceeded,
+		InvalidSuppliedValue,
+		ParseError,
 	}
 
-	impl<T: Config> Did<T::AccountId, T::BlockNumber, <<T as Config>::Time as Time>::Moment>
-		for Pallet<T>
-	{
-		/// Validates if the AccountId 'actual_owner' owns the identity.
-		fn is_owner(identity: &T::AccountId, actual_owner: &T::AccountId) -> DispatchResult {
-			let owner = Self::identity_owner(identity);
-			match owner == *actual_owner {
-				true => Ok(()),
-				false => Err(Error::<T>::NotOwner.into()),
-			}
-		}
-
-		/// Get the identity owner if set.
-		/// If never changed, returns the identity as its owner.
-		fn identity_owner(identity: &T::AccountId) -> T::AccountId {
-			match Self::owner_of(identity) {
-				Some(id) => id,
-				None => identity.clone(),
-			}
-		}
-
-		/// Validates if a delegate belongs to an identity and it has not expired.
-		fn valid_delegate(
-			identity: &T::AccountId,
-			delegate_type: &[u8],
-			delegate: &T::AccountId,
-		) -> DispatchResult {
-			ensure!(delegate_type.len() <= 64, Error::<T>::InvalidDelegate);
-			ensure!(
-				Self::valid_listed_delegate(identity, delegate_type, delegate).is_ok() &&
-					Self::is_owner(identity, delegate).is_ok(),
-				Error::<T>::InvalidDelegate
-			);
-			Ok(())
-		}
-
-		/// Validates that a delegate contains_key for specific purpose and remains valid at this
-		/// block high.
-		fn valid_listed_delegate(
-			identity: &T::AccountId,
-			delegate_type: &[u8],
-			delegate: &T::AccountId,
-		) -> DispatchResult {
-			ensure!(
-				<DelegateOf<T>>::contains_key((&identity, delegate_type, &delegate)),
-				Error::<T>::InvalidDelegate
-			);
-
-			let validity = Self::delegate_of((identity, delegate_type, delegate));
-			match validity > Some(<frame_system::Pallet<T>>::block_number()) {
-				true => Ok(()),
-				false => Err(Error::<T>::InvalidDelegate.into()),
-			}
-		}
-
-		// Creates a new delegete for an account.
-		fn create_delegate(
-			who: &T::AccountId,
-			identity: &T::AccountId,
-			delegate: &T::AccountId,
-			delegate_type: &[u8],
-			valid_for: Option<T::BlockNumber>,
-		) -> DispatchResult {
-			Self::is_owner(&identity, who)?;
-			ensure!(who != delegate, Error::<T>::InvalidDelegate);
-			ensure!(
-				!Self::valid_listed_delegate(identity, delegate_type, delegate).is_ok(),
-				Error::<T>::InvalidDelegate
-			);
-
-			let now_block_number = <frame_system::Pallet<T>>::block_number();
-			let validity: T::BlockNumber = match valid_for {
-				Some(blocks) => now_block_number + blocks,
-				None => u32::max_value().into(),
-			};
-
-			<DelegateOf<T>>::insert((&identity, delegate_type, delegate), &validity);
-			Ok(())
-		}
-
-		/// Adds a new attribute to an identity and colects the storage fee.
-		fn create_attribute(
-			who: &T::AccountId,
-			identity: &T::AccountId,
-			name: &[u8],
-			value: &[u8],
-			valid_for: Option<T::BlockNumber>,
-		) -> DispatchResult {
-			Self::is_owner(&identity, &who)?;
-
-			if Self::attribute_and_id(identity, name).is_some() {
-				Err(Error::<T>::DuplicateNotNeeded.into())
-			} else {
-				let now_timestamp = T::Time::now();
-				let now_block_number = <frame_system::Pallet<T>>::block_number();
-				let validity: T::BlockNumber = match valid_for {
-					Some(blocks) => now_block_number + blocks,
-					None => u32::max_value().into(),
-				};
-
-				let mut nonce = Self::nonce_of((&identity, name.to_vec()));
-				let id = (&identity, name, nonce).using_encoded(blake2_256);
-				let new_attribute = Attribute {
-					name: (&name).to_vec(),
-					value: (&value).to_vec(),
-					validity,
-					creation: now_timestamp,
-					nonce,
-				};
-
-				// Prevent panic overflow
-				nonce = nonce.checked_add(1).ok_or(Error::<T>::Overflow)?;
-				<AttributeOf<T>>::insert((&identity, &id), new_attribute);
-				<AttributeNonce<T>>::mutate((&identity, name.to_vec()), |n| *n = nonce);
-				<UpdatedBy<T>>::insert(identity, (who, now_block_number, now_timestamp));
-				Ok(())
-			}
-		}
-
-		/// Updates the attribute validity to make it expire and invalid.
-		fn reset_attribute(
-			who: T::AccountId,
-			identity: &T::AccountId,
-			name: &[u8],
-		) -> DispatchResult {
-			Self::is_owner(&identity, &who)?;
-			// If the attribute contains_key, the latest valid block is set to the current block.
-			let result = Self::attribute_and_id(identity, name);
-			match result {
-				Some((mut attribute, id)) => {
-					attribute.validity = <frame_system::Pallet<T>>::block_number();
-					<AttributeOf<T>>::mutate((&identity, id), |a| *a = attribute);
-				},
-				None => return Err(Error::<T>::AttributeResetFailed.into()),
-			}
-
-			// Keep track of the updates.
-			<UpdatedBy<T>>::insert(
-				identity,
-				(who, <frame_system::Pallet<T>>::block_number(), T::Time::now()),
-			);
-			Ok(())
-		}
-
-		/// Validates if an attribute belongs to an identity and it has not expired.
-		fn valid_attribute(identity: &T::AccountId, name: &[u8], value: &[u8]) -> DispatchResult {
-			ensure!(name.len() <= 64, Error::<T>::InvalidAttribute);
-			let result = Self::attribute_and_id(identity, name);
-
-			let (attr, _) = match result {
-				Some((attr, id)) => (attr, id),
-				None => return Err(Error::<T>::InvalidAttribute.into()),
-			};
-
-			if (attr.validity > (<frame_system::Pallet<T>>::block_number())) &&
-				(attr.value == value.to_vec())
-			{
-				Ok(())
-			} else {
-				Err(Error::<T>::InvalidAttribute.into())
-			}
-		}
-
-		/// Returns the attribute and its hash identifier.
-		/// Uses a nonce to keep track of identifiers making them unique after attributes deletion.
-		fn attribute_and_id(
-			identity: &T::AccountId,
-			name: &[u8],
-		) -> Option<AttributedId<T::BlockNumber, <<T as Config>::Time as Time>::Moment>> {
-			let nonce = Self::nonce_of((&identity, name.to_vec()));
-
-			// Used for first time attribute creation
-			let lookup_nonce = match nonce {
-				0u64 => 0u64,
-				_ => nonce - 1u64,
-			};
-
-			// Looks up for the existing attribute.
-			// Needs to use actual attribute nonce -1.
-			let id = (&identity, name, lookup_nonce).using_encoded(blake2_256);
-
-			if <AttributeOf<T>>::contains_key((&identity, &id)) {
-				Some((Self::attribute_of((identity, id)), id))
-			} else {
-				None
+	impl<T: Config> Error<T> {
+		fn dispatch_error(err: DidError) -> DispatchResult {
+			match err {
+				DidError::NotFound => Err(Error::<T>::AttributeNotFound.into()),
+				DidError::AlreadyExist => Err(Error::<T>::AttributeAlreadyExist.into()),
+				DidError::NameExceedMaxChar => Err(Error::<T>::AttributeNameExceedMax64.into()),
+				DidError::FailedCreate => Err(Error::<T>::AttributeCreationFailed.into()),
+				DidError::FailedUpdate => Err(Error::<T>::AttributeCreationFailed.into()),
+				DidError::AuthorizationFailed =>
+					Err(Error::<T>::AttributeAuthorizationFailed.into()),
+				DidError::MaxBlockNumberExceeded => Err(Error::<T>::MaxBlockNumberExceeded.into()),
 			}
 		}
 	}
 
-	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::without_storage_info]
+	pub struct Pallet<T>(_);
+
+	#[pallet::storage]
+	#[pallet::getter(fn attribute_of)]
+	pub(super) type AttributeStore<T: Config> = StorageMap<
+		_,
+		Blake2_128Concat,
+		[u8; 32],
+		Attribute<T::BlockNumber, <<T as Config>::Time as MomentTime>::Moment>,
+		ValueQuery,
+	>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn owner_of)]
+	pub(super) type OwnerStore<T: Config> =
+		StorageMap<_, Blake2_128Concat, (T::AccountId, [u8; 32]), T::AccountId>;
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
+
+	// Dispatchable functions allow users to interact with the pallet and invoke state changes.
 	// These functions materialize as "extrinsics", which are often compared to transactions.
 	// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
 	#[pallet::call]
-	impl<T: Config> Pallet<T>
-	//   where &<T as frame_system::Config>::AccountId: PartialEq<<T as
-	// frame_system::Config>::AccountId>
-	{
-		/// Creates a new attribute as part of an identity.
-		/// Sets its expiration period.
-		/// takes following arguments
-		/// 1. identity - identity of the user
-		/// 2. name - name of the attribute
-		/// 3. value - value of the attribute
-		/// 4. valid_for - validity of the attribute
-		#[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1,1).ref_time())]
+	impl<T: Config> Pallet<T> {
+		/// Creates a new attribute as part of a DID
+		/// with optional validity
+		#[pallet::weight(T::WeightInfo::add_attribute())]
 		pub fn add_attribute(
 			origin: OriginFor<T>,
-			identity: T::AccountId,
+			did_account: T::AccountId,
 			name: Vec<u8>,
 			value: Vec<u8>,
 			valid_for: Option<T::BlockNumber>,
 		) -> DispatchResult {
-			let who = ensure_signed(origin)?;
+			// Check that an extrinsic was signed and get the signer
+			// This fn returns an error if the extrinsic is not signed
+			// https://docs.substrate.io/v3/runtime/origins
+			let sender = ensure_signed(origin)?;
+
+			// Verify that the name len is 64 max
 			ensure!(name.len() <= 64, Error::<T>::AttributeNameExceedMax64);
 
-			Self::create_attribute(&who, &identity, &name, &value, valid_for)?;
-			// Emit an event that a new id has been added.
-			Self::deposit_event(Event::AttributeAdded { identity, name, till: valid_for });
+			match Self::create(&sender, &did_account, &name, &value, valid_for) {
+				Ok(()) => {
+					Self::deposit_event(Event::AttributeAdded(
+						sender,
+						did_account,
+						name,
+						value,
+						valid_for,
+					));
+				},
+				Err(e) => return Error::<T>::dispatch_error(e),
+			};
+
 			Ok(())
 		}
 
-		///fetch an attribute of an identity
-		/// takes following arguments
-		/// 1. identity - identity of the user
-		/// 2. name - name of the attribute
-		/// returns the attribute in the event
-		#[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1,1).ref_time())]
-		pub fn get_attribute(
+		/// Update an existing attribute of a DID
+		/// with optional validity
+		#[pallet::weight(T::WeightInfo::update_attribute())]
+		pub fn update_attribute(
 			origin: OriginFor<T>,
-			identity: T::AccountId,
+			did_account: T::AccountId,
+			name: Vec<u8>,
+			value: Vec<u8>,
+			valid_for: Option<T::BlockNumber>,
+		) -> DispatchResult {
+			// Check that an extrinsic was signed and get the signer
+			// This fn returns an error if the extrinsic is not signed
+			// https://docs.substrate.io/v3/runtime/origins
+			let sender = ensure_signed(origin)?;
+
+			// Verify that the name len is 64 max
+			ensure!(name.len() <= 64, Error::<T>::AttributeNameExceedMax64);
+
+			match Self::update(&sender, &did_account, &name, &value, valid_for) {
+				Ok(()) => {
+					Self::deposit_event(Event::AttributeUpdated(
+						sender,
+						did_account,
+						name,
+						value,
+						valid_for,
+					));
+				},
+				Err(e) => return Error::<T>::dispatch_error(e),
+			};
+			Ok(())
+		}
+
+		/// Read did attribute
+		#[pallet::weight(T::WeightInfo::read_attribute())]
+		pub fn read_attribute(
+			origin: OriginFor<T>,
+			did_account: T::AccountId,
 			name: Vec<u8>,
 		) -> DispatchResult {
-			let who = ensure_signed(origin)?;
-			ensure!(name.len() <= 64, Error::<T>::AttributeNameExceedMax64);
-			let result = Self::attribute_and_id(&identity, &name);
+			// Check that an extrinsic was signed and get the signer
+			// This fn returns an error if the extrinsic is not signed
+			// https://docs.substrate.io/v3/runtime/origins
+			ensure_signed(origin)?;
 
-			match result {
-				Some(_) => {
-					//emit event on read of an attribute
-					//may be considered to suppress it
-					Self::deposit_event(Event::AttributeFetched { who, identity, name });
+			let attribute = Self::read(&did_account, &name);
+			match attribute {
+				Some(attribute) => {
+					Self::deposit_event(Event::AttributeRead(attribute));
 				},
-				None => {
-					//raise error
-					return Err(Error::<T>::AttributeNotFound.into())
-					// Self::deposit_event(Event::AttributeNotFound { who: who, identity: identity,
-					// name: name});
-				},
+				None => return Err(Error::<T>::AttributeNotFound.into()),
 			}
+			Ok(())
+		}
+
+		/// Delete an existing attribute of a DID
+		#[pallet::weight(T::WeightInfo::remove_attribute())]
+		pub fn remove_attribute(
+			origin: OriginFor<T>,
+			did_account: T::AccountId,
+			name: Vec<u8>,
+		) -> DispatchResult {
+			// Check that an extrinsic was signed and get the signer
+			// This fn returns an error if the extrinsic is not signed
+			// https://docs.substrate.io/v3/runtime/origins
+			let sender = ensure_signed(origin)?;
+
+			// Verify that the name len is 64 max
+			ensure!(name.len() <= 64, Error::<T>::AttributeNameExceedMax64);
+
+			match Self::delete(&sender, &did_account, &name) {
+				Ok(()) => {
+					// Get the block number from the FRAME system pallet
+					Self::deposit_event(Event::AttributeRemoved(sender, did_account, name));
+				},
+				Err(e) => return Error::<T>::dispatch_error(e),
+			};
 			Ok(())
 		}
 	}
 
-	impl<T: Config> Pallet<T> {
-		/// test the rpc interface with simple call
-		pub fn get_a_value(i: u32, j: u32) -> u32 {
-			i * i + j // return the value i sqaure + j
+	// implements the Did trait to satisfied the required methods
+	impl<T: Config> Did<T::AccountId, T::BlockNumber, <<T as Config>::Time as MomentTime>::Moment>
+		for Pallet<T>
+	{
+		fn is_owner(owner: &T::AccountId, did_account: &T::AccountId) -> Result<(), DidError> {
+			let id = (&owner, &did_account).using_encoded(blake2_256);
+
+			// Check if attribute already exists
+			if !<OwnerStore<T>>::contains_key((&owner, &id)) {
+				return Err(DidError::AuthorizationFailed)
+			}
+
+			Ok(())
 		}
 
-		/// read the value of an attribute from the chain
-		pub fn read_attribute(
-			identity: &T::AccountId,
+		// Add new attribute to a did
+		fn create(
+			owner: &T::AccountId,
+			did_account: &T::AccountId,
 			name: &[u8],
-		) -> Option<Attribute<T::BlockNumber, <<T as Config>::Time as Time>::Moment>> {
-			let nonce = Self::nonce_of((&identity, name.to_vec()));
+			value: &[u8],
+			valid_for: Option<T::BlockNumber>,
+		) -> Result<(), DidError> {
+			// Generate id for integrity check
+			let id = Self::get_hashed_key_for_attr(did_account, name);
 
-			// Used for first time attribute creation
-			let lookup_nonce = match nonce {
-				0u64 => 0u64,
-				_ => nonce - 1u64,
+			// Check if attribute already exists
+			if <AttributeStore<T>>::contains_key(&id) {
+				return Err(DidError::AlreadyExist)
+			}
+
+			let now_timestamp = T::Time::now();
+
+			// validate block number to prevent an overflow
+			let validity = match Self::validate_block_number(valid_for) {
+				Ok(validity) => validity,
+				Err(e) => return Err(e),
 			};
 
-			// Looks up for the existing attribute.
-			// Needs to use actual attribute nonce -1.
-			let id = (&identity, name, lookup_nonce).using_encoded(blake2_256);
+			let new_attribute = Attribute {
+				name: name.to_vec(),
+				value: value.to_vec(),
+				validity,
+				creation: now_timestamp,
+			};
 
-			if <AttributeOf<T>>::contains_key((&identity, &id)) {
-				Some(Self::attribute_of((identity, id)))
-			} else {
-				None
+			<AttributeStore<T>>::insert(&id, new_attribute);
+
+			// Store the owner of the did_account for further validation
+			// when modification is requested
+			let id = (&owner, &did_account).using_encoded(blake2_256);
+			<OwnerStore<T>>::insert((&owner, &id), &did_account);
+
+			Ok(())
+		}
+
+		// Update existing attribute on a did
+		fn update(
+			owner: &T::AccountId,
+			did_account: &T::AccountId,
+			name: &[u8],
+			value: &[u8],
+			valid_for: Option<T::BlockNumber>,
+		) -> Result<(), DidError> {
+			// check if the sender is the owner
+			let is_owner = Self::is_owner(owner, did_account);
+
+			if let Err(e) = is_owner {
+				return Err(e)
 			}
+
+			// validate block number to prevent an overflow
+			let validity = match Self::validate_block_number(valid_for) {
+				Ok(validity) => validity,
+				Err(e) => return Err(e),
+			};
+
+			// Get attribute
+			let attribute = Self::read(did_account, name);
+
+			match attribute {
+				Some(mut attr) => {
+					let id = Self::get_hashed_key_for_attr(did_account, name);
+
+					attr.value = value.to_vec();
+					attr.validity = validity;
+
+					<AttributeStore<T>>::mutate(&id, |a| *a = attr);
+					Ok(())
+				},
+				None => Err(DidError::NotFound),
+			}
+		}
+
+		// Fetch an attribute from a did
+		fn read(
+			did_account: &T::AccountId,
+			name: &[u8],
+		) -> Option<Attribute<T::BlockNumber, <<T as Config>::Time as MomentTime>::Moment>> {
+			let id = Self::get_hashed_key_for_attr(did_account, name);
+
+			if <AttributeStore<T>>::contains_key(&id) {
+				return Some(Self::attribute_of(&id))
+			}
+			None
+		}
+
+		// Delete an attribute from a did
+		fn delete(
+			owner: &T::AccountId,
+			did_account: &T::AccountId,
+			name: &[u8],
+		) -> Result<(), DidError> {
+			// check if the sender is the owner
+			let is_owner = Self::is_owner(owner, did_account);
+
+			if let Err(e) = is_owner {
+				return Err(e)
+			}
+
+			let id = Self::get_hashed_key_for_attr(did_account, name);
+
+			if !<AttributeStore<T>>::contains_key(&id) {
+				return Err(DidError::NotFound)
+			}
+			<AttributeStore<T>>::remove(&id);
+			Ok(())
+		}
+
+		fn get_hashed_key_for_attr(did_account: &T::AccountId, name: &[u8]) -> [u8; 32] {
+			let mut bytes_in_name: Vec<u8> = name.to_vec();
+			let mut bytes_to_hash: Vec<u8> = did_account.encode().as_slice().to_vec();
+			bytes_to_hash.append(&mut bytes_in_name);
+			blake2_256(&bytes_to_hash[..])
+		}
+
+		fn validate_block_number(
+			valid_for: Option<T::BlockNumber>,
+		) -> Result<T::BlockNumber, DidError> {
+			let max_block: T::BlockNumber = Bounded::max_value();
+
+			let validity: T::BlockNumber = match valid_for {
+				Some(blocks) => {
+					let now_block_number: T::BlockNumber =
+						<frame_system::Pallet<T>>::block_number();
+
+					// check for addition values overflow
+					// new_added_vailidity will be NONE if overflown
+					let new_added_vailidity = now_block_number.checked_add(&blocks);
+
+					match new_added_vailidity {
+						Some(v) => v,
+						None => return Err(DidError::MaxBlockNumberExceeded),
+					}
+				},
+				None => max_block,
+			};
+
+			Ok(validity)
 		}
 	}
 }

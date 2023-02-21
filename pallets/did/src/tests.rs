@@ -1,153 +1,219 @@
-use crate::{mock::*, Error};
+use crate::{did::Did, mock::*, Error};
+
 use frame_support::{assert_noop, assert_ok};
-// use frame_system::Origin;
+use hex_literal::hex;
 
 #[test]
-fn add_attribute() {
+fn add_attribute_test() {
 	new_test_ext().execute_with(|| {
-		// test for adding attribute
-		//it should succeed if the attribute is not already present for the DID
-
-		//set blocknumber to 1
 		System::set_block_number(1);
-		//set timestamp to 1
-		Timestamp::set_timestamp(1);
 
-		let name = "key".as_bytes().to_vec();
-		let value = "value".as_bytes().to_vec();
+		let acct = "Felidae";
+		let acct2 = "Felidae2";
+		let origin = account_key(acct);
+		let did_account = account_key(acct2);
+		let name = b"id";
+		let attribute = b"did:pan:1234567890";
 
-		// DidModule::add_attribute(origin, did, name, value, None)
-		// test for attribute added
 		assert_ok!(DidModule::add_attribute(
-			RuntimeOrigin::signed(10),
-			10,
-			name.clone(),
-			value.clone(),
-			Some(100)
-		));
-		// assert add_attribute with none block number
-		assert_ok!(DidModule::add_attribute(
-			RuntimeOrigin::signed(10),
-			10,
-			"key2".as_bytes().to_vec(),
-			"value2".as_bytes().to_vec(),
+			RuntimeOrigin::signed(origin),
+			did_account,
+			name.to_vec(),
+			attribute.to_vec(),
 			None
 		));
+
+		// Test for duplicate entry
+		assert_noop!(
+			DidModule::add_attribute(
+				RuntimeOrigin::signed(origin),
+				did_account,
+				name.to_vec(),
+				attribute.to_vec(),
+				None
+			),
+			Error::<Test>::AttributeAlreadyExist
+		);
+
+		// Test update did attribute with invalid validity
+		assert_noop!(
+			DidModule::add_attribute(
+				RuntimeOrigin::signed(origin),
+				did_account,
+				b"name".to_vec(),
+				attribute.to_vec(),
+				Some(u64::max_value()),
+			),
+			Error::<Test>::MaxBlockNumberExceeded
+		);
 	});
 }
 
 #[test]
-fn correct_error_for_none_existing_key() {
+fn update_attribute_test() {
 	new_test_ext().execute_with(|| {
-		// Ensure the expected error is thrown when no such key is present.
-		// let name = "key".as_bytes().to_vec();
-		// let value = "value".as_bytes().to_vec();
+		System::set_block_number(1);
 
-		// // DidModule::add_attribute(origin, did, name, value, None)
-		// // add an attribute to the did
-		// assert_ok!(DidModule::add_attribute(RuntimeOrigin::signed(10), 10, name.clone(),
-		// value.clone(), Some(100))); test to read undefined attribute
-		// it should fail because the attribute is not defined
+		let acct = "Felidae";
+		let acct2 = "Felidae2";
+		let acct3 = "Fake";
+		let origin = account_key(acct);
+		let did_account = account_key(acct2);
+		let fake_origin = account_key(acct3);
+		let name = b"id";
+		let attribute = b"did:pan:1234567890";
+
+		assert_ok!(DidModule::add_attribute(
+			RuntimeOrigin::signed(origin),
+			did_account,
+			name.to_vec(),
+			attribute.to_vec(),
+			None
+		));
+
+		// Test update owner did attribute
+		assert_ok!(DidModule::update_attribute(
+			RuntimeOrigin::signed(origin),
+			did_account,
+			name.to_vec(),
+			attribute.to_vec(),
+			None,
+		));
+
+		// Test update did attribute with invalid validity
 		assert_noop!(
-			DidModule::get_attribute(RuntimeOrigin::signed(10), 10, "key5".as_bytes().to_vec()),
+			DidModule::update_attribute(
+				RuntimeOrigin::signed(origin),
+				did_account,
+				name.to_vec(),
+				attribute.to_vec(),
+				Some(u64::max_value()),
+			),
+			Error::<Test>::MaxBlockNumberExceeded
+		);
+
+		// Test update another owner did attribute
+		assert_noop!(
+			DidModule::update_attribute(
+				RuntimeOrigin::signed(fake_origin),
+				did_account,
+				name.to_vec(),
+				attribute.to_vec(),
+				None,
+			),
+			Error::<Test>::AttributeAuthorizationFailed
+		);
+
+		// Test update non-existing attribute
+		assert_noop!(
+			DidModule::update_attribute(
+				RuntimeOrigin::signed(origin),
+				did_account,
+				b"name".to_vec(),
+				attribute.to_vec(),
+				None,
+			),
 			Error::<Test>::AttributeNotFound
 		);
 	});
 }
 
 #[test]
-fn correct_error_for_existing_key_addition() {
+fn read_attribute_test() {
 	new_test_ext().execute_with(|| {
-		// test for adding attribute which already exists. Operation by the owner
-		let name = "key".as_bytes().to_vec();
-		let value = "value".as_bytes().to_vec();
+		let acct = "Felidae";
+		let acct2 = "Felidae2";
+		let origin = account_key(acct);
+		let did_account = account_key(acct2);
+		let name = b"id";
+		let attribute = b"did:pan:1234567890";
 
-		// DidModule::add_attribute(origin, did, name, value, None)
-		// test for attribute added
 		assert_ok!(DidModule::add_attribute(
-			RuntimeOrigin::signed(10),
-			10,
-			name.clone(),
-			value.clone(),
-			Some(100)
+			RuntimeOrigin::signed(origin),
+			did_account,
+			name.to_vec(),
+			attribute.to_vec(),
+			None
 		));
-		// test for duplicate attribute
+
+		// Test read existing attribute
+		assert_ok!(DidModule::read_attribute(
+			RuntimeOrigin::signed(origin),
+			did_account,
+			name.to_vec()
+		));
+
+		// Test read non-existing attribute
 		assert_noop!(
-			DidModule::add_attribute(
-				RuntimeOrigin::signed(10),
-				10,
-				name.clone(),
-				value.clone(),
-				Some(100)
+			DidModule::read_attribute(
+				RuntimeOrigin::signed(origin),
+				account_key("invalid"),
+				name.to_vec()
 			),
-			Error::<Test>::DuplicateNotNeeded
+			Error::<Test>::AttributeNotFound
 		);
 	});
 }
 
 #[test]
-fn unauthorized_addition() {
+fn remove_attribute_test() {
 	new_test_ext().execute_with(|| {
-		// test for adding attribute of did by unauthorized user
-		let name = "key".as_bytes().to_vec();
-		let value = "value".as_bytes().to_vec();
+		let acct = "Felidae";
+		let acct2 = "Felidae2";
+		let acct3 = "Fake";
+		let origin = account_key(acct);
+		let did_account = account_key(acct2);
+		let fake_origin = account_key(acct3);
+		let name = b"id";
+		let attribute = b"did:pan:1234567890";
 
-		// DidModule::add_attribute(origin, did, name, value, None)
-		// test for duplicate attribute
+		assert_ok!(DidModule::add_attribute(
+			RuntimeOrigin::signed(origin),
+			did_account,
+			name.to_vec(),
+			attribute.to_vec(),
+			None
+		));
+
+		// Test remove owner did attribute
+		assert_ok!(DidModule::remove_attribute(
+			RuntimeOrigin::signed(origin),
+			did_account,
+			name.to_vec()
+		));
+
+		// Test remove another owner did attribute
 		assert_noop!(
-			DidModule::add_attribute(
-				RuntimeOrigin::signed(11),
-				10,
-				name.clone(),
-				value.clone(),
-				Some(100)
+			DidModule::remove_attribute(
+				RuntimeOrigin::signed(fake_origin),
+				did_account,
+				name.to_vec()
 			),
-			Error::<Test>::NotOwner
+			Error::<Test>::AttributeAuthorizationFailed
+		);
+
+		// Test remove non-existing attribute
+		assert_noop!(
+			DidModule::remove_attribute(
+				RuntimeOrigin::signed(origin),
+				did_account,
+				b"name".to_vec()
+			),
+			Error::<Test>::AttributeNotFound
 		);
 	});
 }
 
 #[test]
-fn read_attribute_by_owner() {
+fn hashed_key_correctness_test() {
 	new_test_ext().execute_with(|| {
-		// test for readin attribute
-		let name = "key".as_bytes().to_vec();
-		let value = "value".as_bytes().to_vec();
-
-		// DidModule::add_attribute(origin, did, name, value, None)
-		// add attribute
-		assert_ok!(DidModule::add_attribute(
-			RuntimeOrigin::signed(10),
-			10,
-			name.clone(),
-			value.clone(),
-			None
+		let did_account = sp_core::sr25519::Public::from_raw(hex!(
+			"d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"
 		));
+		let name = b"id";
+		let expected_result =
+			hex!("9fe4704db64fc812b35abc8a53d0e4183f0621d159f5241edd94d8310f92c409");
 
-		// test for read attribute read by the owner
-		assert_ok!(DidModule::get_attribute(RuntimeOrigin::signed(10), 10, name.clone()));
-	});
-}
-
-#[test]
-fn read_attribute_by_non_owner() {
-	new_test_ext().execute_with(|| {
-		// test for readin attribute
-		let name = "key".as_bytes().to_vec();
-		let value = "value".as_bytes().to_vec();
-
-		// DidModule::add_attribute(origin, did, name, value, None)
-		// add attribute
-		assert_ok!(DidModule::add_attribute(
-			RuntimeOrigin::signed(10),
-			10,
-			name.clone(),
-			value.clone(),
-			None
-		));
-
-		// test for read attribute read by the not-owner user
-		// it should pass because the attribute read is public
-		assert_ok!(DidModule::get_attribute(RuntimeOrigin::signed(11), 10, name.clone()));
+		assert_eq!(DidModule::get_hashed_key_for_attr(&did_account, &name[..]), expected_result)
 	});
 }
