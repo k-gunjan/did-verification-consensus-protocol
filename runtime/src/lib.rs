@@ -90,6 +90,12 @@ pub use pallet_adoption;
 ///import the did pallet.
 pub use pallet_did;
 
+///import the pallet verification protocol
+pub use pallet_verification_protocol;
+
+///import the pallet verification protocol
+pub use pallet_verification_protocol;
+
 // use pallet_did::types::Attribute;
 
 /// An index to a block.
@@ -886,8 +892,8 @@ impl Get<Option<BalancingConfig>> for OffchainRandomBalancing {
 			max => {
 				let seed = sp_io::offchain::random_seed();
 				let random = <u32>::decode(&mut TrailingZeroInput::new(&seed))
-					.expect("input is padded with zeroes; qed") %
-					max.saturating_add(1);
+					.expect("input is padded with zeroes; qed")
+					% max.saturating_add(1);
 				random as usize
 			},
 		};
@@ -1347,9 +1353,42 @@ impl pallet_im_online::Config for Runtime {
 	type MaxPeerDataEncodingSize = MaxPeerDataEncodingSize;
 }
 
-/// Configure the pallet-template in pallets/template.
+// Configure the pallet-template in pallets/template.
 impl pallet_template::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
+}
+
+//parameters of pallet verification protocol
+parameter_types! {
+	pub const MaxLengthListOfDocuments: u32= 50;
+	pub const MinCountatVPRevealStage: u32= 2;
+	pub const MinCountatAllotStage: u32 = 2;
+	pub const MinCountatAckAcceptStage: u32 = 2;
+	pub const MinCountatSubmitVPStage: u32 = 2;
+	pub const MinCountatRevealStage: u32 = 2;
+	pub const MaxWaitingTimeAtStages: u32 = 1 * HOURS as u32 ;
+}
+
+// Configure the  pallet verification protocol
+impl pallet_verification_protocol::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type PalletId = TreasuryPalletId;
+	type Currency = Balances;
+	type Balance = u128;
+
+	type MaxLengthListOfDocuments = MaxLengthListOfDocuments;
+	/// Minimum number of verification parameters required at the reveal phase. say X
+	type MinCountatVPRevealStage = MinCountatVPRevealStage;
+	/// Count multiplier to above at the allotment stage. say 4 * X
+	type MinCountatAllotStage = MinCountatAllotStage;
+	/// Count multiplier to minimum at the Ack stage. say 3 * X
+	type MinCountatAckAcceptStage = MinCountatAckAcceptStage;
+	/// Count multiplier to minimum at the Submit Verification Para stage. say 2 * X
+	type MinCountatSubmitVPStage = MinCountatSubmitVPStage;
+	/// Count multiplier to minimum at the Reveal stage. say X equal to the minimum
+	type MinCountatRevealStage = MinCountatRevealStage;
+	/// Waiting period at each stage to receive CountXat<stage> submissions. say 1hr (3600/6 = 600 blocks)
+	type MaxWaitingTimeAtStages = MaxWaitingTimeAtStages;
 }
 
 parameter_types! {
@@ -1362,7 +1401,7 @@ parameter_types! {
 	pub const MaxCIDLength:u32 = 100; //most likely max as lenght depends on hashing algo
 }
 
-/// Configure the pallet-adoption in pallets/adoption.
+// Configure the pallet-adoption in pallets/adoption.
 impl pallet_adoption::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type MaxLength = MaxLength;
@@ -1372,7 +1411,7 @@ impl pallet_adoption::Config for Runtime {
 	type Currency = Balances;
 }
 
-/// Configure the pallet-did in pallets/did.
+// Configure the pallet-did in pallets/did.
 impl pallet_did::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Time = Timestamp;
@@ -1425,6 +1464,7 @@ construct_runtime!(
 		TemplateModule: pallet_template,
 		AdoptionModule: pallet_adoption,
 		DidModule: pallet_did,
+		VerificationProtocol: pallet_verification_protocol,
 	}
 );
 
@@ -1502,6 +1542,7 @@ mod benches {
 		[pallet_contracts, Contracts]
 		[pallet_adoption, AdoptionModule]
 		[pallet_did, DidModule]
+		[pallet_verification_protocol, VerificationProtocol]
 	);
 }
 
