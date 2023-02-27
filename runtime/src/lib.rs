@@ -24,15 +24,17 @@ use sp_api::impl_runtime_apis;
 // use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::{
-	create_runtime_str, generic, impl_opaque_keys,
+	create_runtime_str,
 	curve::PiecewiseLinear,
-	traits::{
-		self, AccountIdLookup, BlakeTwo256, Block as BlockT, NumberFor, IdentifyAccount, Verify, 
-		OpaqueKeys, SaturatedConversion, StaticLookup,
-	},
+	generic,
 	generic::Era,
-	transaction_validity::{TransactionSource, TransactionValidity, TransactionPriority},
-	ApplyExtrinsicResult, FixedPointNumber, Perbill, Percent, Permill, Perquintill, MultiSignature,
+	impl_opaque_keys,
+	traits::{
+		self, AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor,
+		OpaqueKeys, SaturatedConversion, StaticLookup, Verify,
+	},
+	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
+	ApplyExtrinsicResult, FixedPointNumber, MultiSignature, Perbill, Percent, Permill, Perquintill,
 };
 use sp_std::prelude::*;
 #[cfg(feature = "std")]
@@ -47,16 +49,16 @@ pub use frame_system::Call as SystemCall;
 pub use frame_support::{
 	construct_runtime,
 	dispatch::DispatchClass,
-	parameter_types,
 	pallet_prelude::Get,
+	parameter_types,
 	traits::{
-		ConstBool, ConstU128, ConstU32, ConstU64, ConstU8, ConstU16, KeyOwnerProofSystem, Randomness,
-		LockIdentifier, Nothing, StorageInfo, U128CurrencyToVote, EitherOfDiverse, EqualPrivilegeOnly,
-		Imbalance, Currency, OnUnbalanced, 
+		ConstBool, ConstU128, ConstU16, ConstU32, ConstU64, ConstU8, Currency, EitherOfDiverse,
+		EqualPrivilegeOnly, Imbalance, KeyOwnerProofSystem, LockIdentifier, Nothing, OnUnbalanced,
+		Randomness, StorageInfo, U128CurrencyToVote,
 	},
 	weights::{
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
-		IdentityFee, Weight
+		IdentityFee, Weight,
 	},
 	PalletId, StorageValue,
 };
@@ -67,13 +69,13 @@ use frame_election_provider_support::{
 	onchain, BalancingConfig, ElectionDataProvider, SequentialPhragmen, VoteWeight,
 };
 
-use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
-use pallet_election_provider_multi_phase::SolutionAccuracyOf;
-use pallet_session::historical::{self as pallet_session_historical};
 pub use pallet_balances::Call as BalancesCall;
+use pallet_election_provider_multi_phase::SolutionAccuracyOf;
+use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
+use pallet_session::historical::{self as pallet_session_historical};
 pub use pallet_timestamp::Call as TimestampCall;
-use pallet_transaction_payment::{TargetedFeeAdjustment, CurrencyAdapter, Multiplier};
+use pallet_transaction_payment::{CurrencyAdapter, Multiplier, TargetedFeeAdjustment};
+use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 // pub use sp_runtime::BuildStorage;
 
 #[cfg(any(feature = "std", test))]
@@ -87,6 +89,9 @@ pub use pallet_adoption;
 
 ///import the did pallet.
 pub use pallet_did;
+
+///import the pallet verification protocol
+pub use pallet_verification_protocol;
 
 use pallet_did::types::Attribute;
 
@@ -178,7 +183,6 @@ pub const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);
 pub const HOURS: BlockNumber = MINUTES * 60;
 pub const DAYS: BlockNumber = HOURS * 24;
 
-
 // NOTE: Currently it is not possible to change the epoch duration after the chain has started.
 //       Attempting to do so will brick block production.
 pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 10 * MINUTES;
@@ -197,8 +201,6 @@ pub const BABE_GENESIS_EPOCH_CONFIG: sp_consensus_babe::BabeEpochConfiguration =
 		c: PRIMARY_PROBABILITY,
 		allowed_slots: sp_consensus_babe::AllowedSlots::PrimaryAndSecondaryPlainSlots,
 	};
-
-
 
 // Contracts price units.
 pub const MILLICENTS: Balance = 1_000_000_000;
@@ -356,7 +358,7 @@ impl pallet_babe::Config for Runtime {
 		pallet_babe::AuthorityId,
 	)>>::IdentificationTuple;
 
-	type HandleEquivocation = 
+	type HandleEquivocation =
 		pallet_babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences, ReportLongevity>;
 
 	type WeightInfo = ();
@@ -439,7 +441,7 @@ impl pallet_staking::Config for Runtime {
 	type CurrencyToVote = U128CurrencyToVote;
 	type RewardRemainder = Treasury; // TODO
 	type RuntimeEvent = RuntimeEvent;
-	type Slash = Treasury;  // TODO send the slashed funds to the treasury.
+	type Slash = Treasury; // TODO send the slashed funds to the treasury.
 	type Reward = (); // rewards are minted from the void
 	type SessionsPerEra = SessionsPerEra;
 	type BondingDuration = BondingDuration;
@@ -489,8 +491,8 @@ impl pallet_elections_phragmen::Config for Runtime {
 	type PalletId = ElectionsPhragmenPalletId;
 	type Currency = Balances;
 	type ChangeMembers = (); //TODO Council
-	// NOTE: this implies that council's genesis members cannot be set directly and must come from
-	// this module.
+						 // NOTE: this implies that council's genesis members cannot be set directly and must come from
+						 // this module.
 	type InitializeMembers = (); // TODO Council
 	type CurrencyToVote = U128CurrencyToVote;
 	type CandidacyBond = CandidacyBond;
@@ -505,7 +507,6 @@ impl pallet_elections_phragmen::Config for Runtime {
 	type MaxCandidates = MaxCandidates;
 	type WeightInfo = pallet_elections_phragmen::weights::SubstrateWeight<Runtime>;
 }
-
 
 parameter_types! {
 	// phase durations. 1/4 of the last session for each.
@@ -578,8 +579,8 @@ impl Get<Option<BalancingConfig>> for OffchainRandomBalancing {
 			max => {
 				let seed = sp_io::offchain::random_seed();
 				let random = <u32>::decode(&mut TrailingZeroInput::new(&seed))
-					.expect("input is padded with zeroes; qed") %
-					max.saturating_add(1);
+					.expect("input is padded with zeroes; qed")
+					% max.saturating_add(1);
 				random as usize
 			},
 		};
@@ -1081,9 +1082,42 @@ impl pallet_im_online::Config for Runtime {
 	type MaxPeerDataEncodingSize = MaxPeerDataEncodingSize;
 }
 
-/// Configure the pallet-template in pallets/template.
+// Configure the pallet-template in pallets/template.
 impl pallet_template::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
+}
+
+//parameters of pallet verification protocol
+parameter_types! {
+	pub const MaxLengthListOfDocuments: u32= 50;
+	pub const MinCountatVPRevealStage: u32= 2;
+	pub const MinCountatAllotStage: u32 = 2;
+	pub const MinCountatAckAcceptStage: u32 = 2;
+	pub const MinCountatSubmitVPStage: u32 = 2;
+	pub const MinCountatRevealStage: u32 = 2;
+	pub const MaxWaitingTimeAtStages: u32 = 1 * HOURS as u32 ;
+}
+
+// Configure the  pallet verification protocol
+impl pallet_verification_protocol::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type PalletId = TreasuryPalletId;
+	type Currency = Balances;
+	type Balance = u128;
+
+	type MaxLengthListOfDocuments = MaxLengthListOfDocuments;
+	/// Minimum number of verification parameters required at the reveal phase. say X
+	type MinCountatVPRevealStage = MinCountatVPRevealStage;
+	/// Count multiplier to above at the allotment stage. say 4 * X
+	type MinCountatAllotStage = MinCountatAllotStage;
+	/// Count multiplier to minimum at the Ack stage. say 3 * X
+	type MinCountatAckAcceptStage = MinCountatAckAcceptStage;
+	/// Count multiplier to minimum at the Submit Verification Para stage. say 2 * X
+	type MinCountatSubmitVPStage = MinCountatSubmitVPStage;
+	/// Count multiplier to minimum at the Reveal stage. say X equal to the minimum
+	type MinCountatRevealStage = MinCountatRevealStage;
+	/// Waiting period at each stage to receive CountXat<stage> submissions. say 1hr (3600/6 = 600 blocks)
+	type MaxWaitingTimeAtStages = MaxWaitingTimeAtStages;
 }
 
 parameter_types! {
@@ -1096,7 +1130,7 @@ parameter_types! {
 	pub const MaxCIDLength:u32 = 100; //most likely max as lenght depends on hashing algo
 }
 
-/// Configure the pallet-adoption in pallets/adoption.
+// Configure the pallet-adoption in pallets/adoption.
 impl pallet_adoption::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type MaxLength = MaxLength;
@@ -1106,7 +1140,7 @@ impl pallet_adoption::Config for Runtime {
 	type Currency = Balances;
 }
 
-/// Configure the pallet-did in pallets/did.
+// Configure the pallet-did in pallets/did.
 impl pallet_did::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Time = Timestamp;
@@ -1158,6 +1192,7 @@ construct_runtime!(
 		TemplateModule: pallet_template,
 		AdoptionModule: pallet_adoption,
 		DidModule: pallet_did,
+		VerificationProtocol: pallet_verification_protocol,
 	}
 );
 
@@ -1231,6 +1266,7 @@ mod benches {
 		[pallet_contracts, Contracts]
 		[pallet_adoption, AdoptionModule]
 		[pallet_did, DidModule]
+		[pallet_verification_protocol, VerificationProtocol]
 	);
 }
 
@@ -1562,7 +1598,7 @@ impl_runtime_apis! {
 		fn benchmark_metadata(extra: bool) -> (
 			Vec<frame_benchmarking::BenchmarkList>,
 			Vec<frame_support::traits::StorageInfo>,
-		) {	
+		) {
 			// Trying to add benchmarks directly to the Session Pallet caused cyclic dependency
 			// issues. To get around that, we separated the Session benchmarks into its own crate,
 			// which is why we need these two lines below.
