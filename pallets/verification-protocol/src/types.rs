@@ -52,7 +52,6 @@ pub struct StateConfig<BlockNumber> {
 	pub stage: VerificationStages,
 }
 
-
 /// Enumerates stages of verification requests
 #[derive(Eq, PartialEq, PartialOrd, TypeInfo, Ord, Clone, Encode, Decode, Default, Debug)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
@@ -73,14 +72,14 @@ pub enum VerificationStages {
 #[derive(Eq, PartialEq, PartialOrd, TypeInfo, Ord, Clone, Encode, Decode, Default, Debug)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct StateAttributes<BlockNumber> {
-	pub done_count_of_verifiers: u32,
-	pub pending_count_of_verifiers: u32,
-	pub round_number: u32,
+	pub done_count_of_verifiers: u8,
+	pub pending_count_of_verifiers: u8,
+	pub round_number: u8,
 	/// whether this is to be fulfilled or Done
 	pub state: bool,
 	/// Start time of the state true
 	pub started_at: BlockNumber,
-	/// Completion time of the fullfilment 
+	/// Completion time of the fullfilment
 	pub ended_at: Option<BlockNumber>,
 	/// Duration for which state was True
 	pub state_duration: u32,
@@ -90,7 +89,7 @@ pub struct StateAttributes<BlockNumber> {
 #[derive(Eq, PartialEq, PartialOrd, TypeInfo, Ord, Clone, Encode, Decode, Default, Debug)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum EvalVpResult {
-    /// Eval process started
+	/// Eval process started
 	#[default]
 	Pending,
 	/// Accepted and ll proceed to created DID
@@ -138,31 +137,66 @@ pub enum VerifierState {
 
 /// verification parameter submitted by the verifier
 /// Either reject or Accept with the hash of the verification data
+// #[derive(Eq, PartialEq, PartialOrd, TypeInfo, Ord, Clone, Encode, Decode, Debug)]
 #[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[scale_info(skip_type_params(T))]
 pub enum VerificationParameter {
 	Reject,
 	Accept(H256),
 }
 
-/// Struct to hold the process data of verifier per task
+/// Struct to hold the process data of verifier for every verification request
+// #[derive(Eq, PartialEq, PartialOrd, TypeInfo, Ord, Clone, Encode, Decode, Debug, EncodeLike)]
 #[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug)]
 #[scale_info(skip_type_params(T))]
-pub struct VerificationProcessData<AccountId> {
-	pub verifier_account_id: AccountId,
-    /// at blocknumber
-    pub allotted: Option<u128>  
-    /// ack with(blocknumber, confidence_score)
-    pub acknowledged: Option<(u128, u8)> 
-	pub data: Option<(u128, VerificationParameter)>,
-	pub revealed_data: Option<(u128, ConsumerDetails)>,
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+pub struct VerificationProcessData<T: Config> {
+	pub verifier_account_id: T::AccountId,
+	/// at blocknumber
+	pub allotted: Option<T::BlockNumber>,
+	/// ack with(blocknumber, confidence_score)
+	pub acknowledged: Option<(T::BlockNumber, u8)>,
+	pub data: Option<(T::BlockNumber, VerificationParameter)>,
+	pub revealed_data: Option<(T::BlockNumber, ConsumerDetails)>,
 	pub is_valid: Option<bool>,
 }
 
+/// Struct of consumer personal data
+/// hash1 may be hash of (name + DOB + Fathers name)
+// #[derive(Eq, PartialEq, PartialOrd, TypeInfo, Ord, Clone, Encode, Decode, Debug)]
 #[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug)]
-#[scale_info(skip_type_params(T))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+// #[scale_info(skip_type_params(T))]
 pub struct ConsumerDetails {
 	pub hash1: H256,
 	pub hash2: H256,
 	pub hash3: H256,
+}
+
+/// Struct of verification protocol parameters
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug)]
+#[scale_info(skip_type_params(T))]
+pub struct ProtocolParameterValues {
+	pub max_length_list_of_documents: u16,
+	pub min_count_at_vp_reveal_stage: u16,
+	pub min_count_at_allot_stage: u8,
+	pub min_count_at_ack_accept_stage: u8,
+	pub min_count_at_submit_vp_stage: u8,
+	pub min_count_at_reveal_stage: u8,
+	pub max_waiting_time_at_stages: u32,
+}
+
+impl Default for ProtocolParameterValues {
+	fn default() -> Self {
+		ProtocolParameterValues {
+			max_length_list_of_documents: 150,
+			min_count_at_vp_reveal_stage: 5,
+			min_count_at_allot_stage: 20,
+			min_count_at_ack_accept_stage: 15,
+			min_count_at_submit_vp_stage: 10,
+			min_count_at_reveal_stage: 5,
+			max_waiting_time_at_stages: 50,
+		}
+	}
 }
