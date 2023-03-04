@@ -1360,7 +1360,7 @@ impl pallet_template::Config for Runtime {
 
 //parameters of pallet verification protocol
 parameter_types! {
-	pub const MaxLengthListOfDocuments: u32= 50;
+	pub const MaxLengthListOfDocuments: u32= 150;
 	pub const MinCountatVPRevealStage: u32= 2;
 	pub const MinCountatAllotStage: u32 = 2;
 	pub const MinCountatAckAcceptStage: u32 = 2;
