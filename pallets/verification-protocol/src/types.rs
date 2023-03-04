@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::Config;
 use frame_support::inherent::Vec;
 use frame_support::pallet_prelude::ConstU32;
+use frame_support::pallet_prelude::Get;
 use frame_support::BoundedVec;
 use scale_info::TypeInfo;
 use sp_core::H256;
@@ -20,6 +21,24 @@ pub struct VerificationRequest<T: Config> {
 	pub list_of_id_hashes: BoundedVec<u8, T::MaxLengthListOfDocuments>,
 	pub did_creation_status: DidCreationStatus,
 	pub state: StateConfig<T::BlockNumber>,
+}
+
+impl<T: Config> VerificationRequest<T> {
+	/// Required number of accept has been received
+	/// and  closing the new acceptence
+	fn act_on_fulfilled_ack(&mut self) {
+		self.state.ack.state = false;
+	}
+	/// Required number of verification parameter has been received
+	/// and  closing the new submissions
+	fn act_on_fulfilled_submit_vp(&mut self) {
+		self.state.submit_vp.state = false;
+	}
+	/// Required number of reveal has been received
+	/// and  closing the new reveals
+	fn act_on_fulfilled_reveal(&mut self) {
+		self.state.reveal.state = false;
+	}
 }
 
 /// Enumurates the possible Did Creation Statuses
@@ -154,7 +173,7 @@ pub enum VerificationParameter {
 pub struct VerificationProcessData<T: Config> {
 	pub verifier_account_id: T::AccountId,
 	/// at blocknumber
-	pub allotted: Option<T::BlockNumber>,
+	pub allotted_at: Option<T::BlockNumber>,
 	/// ack with(blocknumber, confidence_score)
 	pub acknowledged: Option<(T::BlockNumber, u8)>,
 	pub data: Option<(T::BlockNumber, VerificationParameter)>,

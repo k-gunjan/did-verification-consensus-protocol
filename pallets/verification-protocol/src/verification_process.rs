@@ -11,11 +11,12 @@ pub trait VerificationProcess<C: Config> {
 	/// Creates a DID verification request
 	fn create_verification_request(
 		who: &C::AccountId,
-		list_of_documents: BoundedVec<u8, C::MaxLengthListOfDocuments>,
+		list_of_documents: Vec<u8>,
 	) -> DispatchResult;
 
 	/// alot the new tasks to eligible verifiers
 	/// in round-robin for now
+	/// and allow ack & vp-submit
 	fn allot_verification_task(
 		verifiers: Vec<C::AccountId>,
 		verification_reuests: Vec<(&C::AccountId, u8)>,
@@ -25,7 +26,7 @@ pub trait VerificationProcess<C: Config> {
 	fn ack_verification_task(
 		_who: &C::AccountId,
 		consumer_account_id: &C::AccountId,
-		confidence_score: Option<BoundedVec<u8, ConstU32<10>>>,
+		confidence_score: u8,
 	) -> DispatchResult;
 
 	/// Check if the verifier has been allotted the task
