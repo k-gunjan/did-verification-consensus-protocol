@@ -1,10 +1,10 @@
-use crate::types::*;
 use crate::Config;
 use frame_support::dispatch::DispatchResult;
 use frame_support::inherent::Vec;
-use frame_support::pallet_prelude::ConstU32;
-use frame_support::traits::ConstU8;
-use frame_support::BoundedVec;
+// use crate::types::*;
+// use frame_support::pallet_prelude::ConstU32;
+// use frame_support::traits::ConstU8;
+// use frame_support::BoundedVec;
 
 /// Traits of verification process
 pub trait VerificationProcess<C: Config> {
@@ -19,7 +19,7 @@ pub trait VerificationProcess<C: Config> {
 	/// and allow ack & vp-submit
 	fn allot_verification_task(
 		verifiers: Vec<C::AccountId>,
-		verification_reuests: Vec<(&C::AccountId, u8)>,
+		verification_reuests: Vec<(&C::AccountId, u16)>,
 	) -> DispatchResult;
 
 	/// Acknowledge the acceptence with confidence score
@@ -39,7 +39,7 @@ pub trait VerificationProcess<C: Config> {
 	fn submit_verification_parameter(
 		_who: &C::AccountId,
 		consumer_account_id: &C::AccountId,
-		verification_parameters: VerificationParameter,
+		verification_parameters: sp_core::H256,
 	) -> DispatchResult;
 
 	/// check if verifier accepted the task and can submit verification parameter
@@ -52,8 +52,8 @@ pub trait VerificationProcess<C: Config> {
 	fn reveal_verification_parameter(
 		_who: &C::AccountId,
 		consumer_account_id: &C::AccountId,
-		verification_parameters: Vec<C::Hash>,
-		secret: BoundedVec<u8, ConstU8<20>>,
+		clear_parameters: Vec<u8>,
+		secret: Vec<u8>,
 	) -> DispatchResult;
 
 	/// Check if verifier submitted verification parameter and can reveal now
@@ -61,4 +61,14 @@ pub trait VerificationProcess<C: Config> {
 		_who: &C::AccountId,
 		consumer_account_id: &C::AccountId,
 	) -> DispatchResult;
+
+	/// Check if wait time for ack is over. re-allot to
+	/// more verifiers if wait is over and not completely fulfilled
+	/// This takes list of verification request ids to act on
+	fn act_on_wait_over_for_ack(verification_req_id: Vec<&C::AccountId>) -> DispatchResult;
+
+	/// Check if wait time for submit_vp is over. re-allot to
+	/// more verifiers if wait is over and not completely fulfilled
+	/// This takes list of verification request ids to act on
+	fn act_on_wait_over_for_submit_vp(list_verification_req: Vec<&C::AccountId>) -> DispatchResult;
 }

@@ -1087,15 +1087,9 @@ impl pallet_template::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 }
 
-//parameters of pallet verification protocol
+// //parameters of pallet verification protocol
 parameter_types! {
-	pub const MaxLengthListOfDocuments: u32= 150;
-	pub const MinCountatVPRevealStage: u32= 2;
-	pub const MinCountatAllotStage: u32 = 2;
-	pub const MinCountatAckAcceptStage: u32 = 2;
-	pub const MinCountatSubmitVPStage: u32 = 2;
-	pub const MinCountatRevealStage: u32 = 2;
-	pub const MaxWaitingTimeAtStages: u32 = 1 * HOURS as u32 ;
+pub const MaxLengthListOfDocuments: u32 = 150;
 }
 
 // Configure the  pallet verification protocol
@@ -1103,21 +1097,9 @@ impl pallet_verification_protocol::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type PalletId = TreasuryPalletId;
 	type Currency = Balances;
-	type Balance = u128;
+	// type Balance = u128;
 
 	type MaxLengthListOfDocuments = MaxLengthListOfDocuments;
-	/// Minimum number of verification parameters required at the reveal phase. say X
-	type MinCountatVPRevealStage = MinCountatVPRevealStage;
-	/// Count multiplier to above at the allotment stage. say 4 * X
-	type MinCountatAllotStage = MinCountatAllotStage;
-	/// Count multiplier to minimum at the Ack stage. say 3 * X
-	type MinCountatAckAcceptStage = MinCountatAckAcceptStage;
-	/// Count multiplier to minimum at the Submit Verification Para stage. say 2 * X
-	type MinCountatSubmitVPStage = MinCountatSubmitVPStage;
-	/// Count multiplier to minimum at the Reveal stage. say X equal to the minimum
-	type MinCountatRevealStage = MinCountatRevealStage;
-	/// Waiting period at each stage to receive CountXat<stage> submissions. say 1hr (3600/6 = 600 blocks)
-	type MaxWaitingTimeAtStages = MaxWaitingTimeAtStages;
 }
 
 parameter_types! {

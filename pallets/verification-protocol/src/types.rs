@@ -1,13 +1,9 @@
-use codec::{Decode, Encode, EncodeLike};
-
-#[cfg(feature = "std")]
-use serde::{Deserialize, Serialize};
+use codec::{Decode, Encode};
 
 use crate::Config;
-use frame_support::inherent::Vec;
-use frame_support::pallet_prelude::ConstU32;
-use frame_support::pallet_prelude::Get;
-use frame_support::BoundedVec;
+
+use frame_support::{inherent::Vec, pallet_prelude::ConstU32, BoundedVec};
+
 use scale_info::TypeInfo;
 use sp_core::H256;
 
@@ -23,27 +19,41 @@ pub struct VerificationRequest<T: Config> {
 	pub state: StateConfig<T::BlockNumber>,
 }
 
-impl<T: Config> VerificationRequest<T> {
-	/// Required number of accept has been received
-	/// and  closing the new acceptence
-	fn act_on_fulfilled_ack(&mut self) {
-		self.state.ack.state = false;
-	}
-	/// Required number of verification parameter has been received
-	/// and  closing the new submissions
-	fn act_on_fulfilled_submit_vp(&mut self) {
-		self.state.submit_vp.state = false;
-	}
-	/// Required number of reveal has been received
-	/// and  closing the new reveals
-	fn act_on_fulfilled_reveal(&mut self) {
-		self.state.reveal.state = false;
-	}
+/// Macro to update the verification request object on fulfillment of the task by verifiers
+/// or the chain itself
+// #[macro_use]
+#[macro_export]
+macro_rules! act_on_fulfilled {
+	($stage:ident, $obj:expr, $fulfilled_count:expr, $current_block:expr ) => {
+		$obj.state.$stage.pending_count_of_verifiers -= $fulfilled_count;
+		$obj.state.$stage.done_count_of_verifiers += $fulfilled_count;
+		if $obj.state.$stage.pending_count_of_verifiers == 0 {
+			$obj.state.$stage.state = false;
+			$obj.state.$stage.ended_at = Some($current_block);
+		}
+	};
 }
+pub use act_on_fulfilled;
+
+/// Macro to start or update the stages of the verification requests
+/// it starts the new round with new required number to fulfill, wait duration and the current
+/// block number
+#[macro_export]
+macro_rules! start_stage {
+	($stage:ident, $obj:expr, $pending_count_increment:expr, $wait_time:expr, $current_block:expr ) => {
+		$obj.state.$stage.state = true;
+		$obj.state.$stage.round_number += 1;
+		$obj.state.$stage.started_at = $current_block;
+		// default value started at zero.
+		$obj.state.$stage.pending_count_of_verifiers += $pending_count_increment;
+		// state duration to be set not incremented
+		$obj.state.$stage.state_duration = $wait_time;
+	};
+}
+pub use start_stage;
 
 /// Enumurates the possible Did Creation Statuses
 #[derive(Eq, PartialEq, PartialOrd, TypeInfo, Ord, Clone, Encode, Decode, Default, Debug)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum DidCreationStatus {
 	/// Pending on submission
 	#[default]
@@ -60,7 +70,6 @@ pub enum DidCreationStatus {
 
 /// State parameters of different stages of the request
 #[derive(Eq, PartialEq, PartialOrd, TypeInfo, Ord, Clone, Encode, Decode, Default, Debug)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct StateConfig<BlockNumber> {
 	pub allot: StateAttributes<BlockNumber>,
 	pub ack: StateAttributes<BlockNumber>,
@@ -73,7 +82,6 @@ pub struct StateConfig<BlockNumber> {
 
 /// Enumerates stages of verification requests
 #[derive(Eq, PartialEq, PartialOrd, TypeInfo, Ord, Clone, Encode, Decode, Default, Debug)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum VerificationStages {
 	#[default]
 	Submitted,
@@ -89,11 +97,10 @@ pub enum VerificationStages {
 
 /// Attributes of a particular Stage
 #[derive(Eq, PartialEq, PartialOrd, TypeInfo, Ord, Clone, Encode, Decode, Default, Debug)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct StateAttributes<BlockNumber> {
-	pub done_count_of_verifiers: u8,
-	pub pending_count_of_verifiers: u8,
-	pub round_number: u8,
+	pub done_count_of_verifiers: u16,
+	pub pending_count_of_verifiers: u16,
+	pub round_number: u16,
 	/// whether this is to be fulfilled or Done
 	pub state: bool,
 	/// Start time of the state true
@@ -106,7 +113,6 @@ pub struct StateAttributes<BlockNumber> {
 
 /// Enumerates the results of the Evaluation of veri-para  
 #[derive(Eq, PartialEq, PartialOrd, TypeInfo, Ord, Clone, Encode, Decode, Default, Debug)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum EvalVpResult {
 	/// Eval process started
 	#[default]
@@ -121,7 +127,6 @@ pub enum EvalVpResult {
 
 /// Enumerates states of evaluation process
 #[derive(Eq, PartialEq, PartialOrd, TypeInfo, Ord, Clone, Encode, Decode, Default, Debug)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum EvalVpState {
 	#[default]
 	Pending,
@@ -156,41 +161,50 @@ pub enum VerifierState {
 
 /// verification parameter submitted by the verifier
 /// Either reject or Accept with the hash of the verification data
-// #[derive(Eq, PartialEq, PartialOrd, TypeInfo, Ord, Clone, Encode, Decode, Debug)]
 #[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 #[scale_info(skip_type_params(T))]
-pub enum VerificationParameter {
+pub enum RevealedParameters {
 	Reject,
-	Accept(H256),
+	Accept(ConsumerDetails),
 }
 
 /// Struct to hold the process data of verifier for every verification request
-// #[derive(Eq, PartialEq, PartialOrd, TypeInfo, Ord, Clone, Encode, Decode, Debug, EncodeLike)]
 #[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug)]
 #[scale_info(skip_type_params(T))]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct VerificationProcessData<T: Config> {
 	pub verifier_account_id: T::AccountId,
 	/// at blocknumber
 	pub allotted_at: Option<T::BlockNumber>,
 	/// ack with(blocknumber, confidence_score)
 	pub acknowledged: Option<(T::BlockNumber, u8)>,
-	pub data: Option<(T::BlockNumber, VerificationParameter)>,
-	pub revealed_data: Option<(T::BlockNumber, ConsumerDetails)>,
+	pub data: Option<(T::BlockNumber, H256)>,
+	pub revealed_data: Option<(T::BlockNumber, RevealedParameters)>,
 	pub is_valid: Option<bool>,
+}
+
+/// allot to a task to a particular verifier
+impl<T: Config> VerificationProcessData<T> {
+	pub fn allot_to_verifier(verifier: T::AccountId, current_block: T::BlockNumber) -> Self {
+		VerificationProcessData {
+			verifier_account_id: verifier,
+			allotted_at: Some(current_block),
+			acknowledged: None.into(),
+			data: None.into(),
+			revealed_data: None.into(),
+			is_valid: None.into(),
+		}
+	}
 }
 
 /// Struct of consumer personal data
 /// hash1 may be hash of (name + DOB + Fathers name)
-// #[derive(Eq, PartialEq, PartialOrd, TypeInfo, Ord, Clone, Encode, Decode, Debug)]
 #[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-// #[scale_info(skip_type_params(T))]
 pub struct ConsumerDetails {
-	pub hash1: H256,
-	pub hash2: H256,
-	pub hash3: H256,
+	pub country: BoundedVec<u8, ConstU32<50>>,
+	pub id_issuing_authority: BoundedVec<u8, ConstU32<200>>,
+	pub hash1_name_dob_father: H256,
+	pub hash2_name_dob_mother: H256,
+	pub hash3_name_dob_guardian: H256,
 }
 
 /// Struct of verification protocol parameters
@@ -199,10 +213,10 @@ pub struct ConsumerDetails {
 pub struct ProtocolParameterValues {
 	pub max_length_list_of_documents: u16,
 	pub min_count_at_vp_reveal_stage: u16,
-	pub min_count_at_allot_stage: u8,
-	pub min_count_at_ack_accept_stage: u8,
-	pub min_count_at_submit_vp_stage: u8,
-	pub min_count_at_reveal_stage: u8,
+	pub min_count_at_allot_stage: u16,
+	pub min_count_at_ack_accept_stage: u16,
+	pub min_count_at_submit_vp_stage: u16,
+	pub min_count_at_reveal_stage: u16,
 	pub max_waiting_time_at_stages: u32,
 }
 
@@ -218,4 +232,14 @@ impl Default for ProtocolParameterValues {
 			max_waiting_time_at_stages: 50,
 		}
 	}
+}
+
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug)]
+// #[scale_info(skip_type_params(T))]
+pub struct RevealedData {
+	pub country: Vec<u8>,
+	pub id_issuing_authority: Vec<u8>,
+	pub hash1_name_dob_father: Vec<u8>,
+	pub hash2_name_dob_mother: Vec<u8>,
+	pub hash3_name_dob_guardian: Vec<u8>,
 }
