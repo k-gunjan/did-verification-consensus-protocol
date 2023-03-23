@@ -90,12 +90,6 @@ pub use pallet_adoption;
 ///import the did pallet.
 pub use pallet_did;
 
-///import the pallet verification protocol
-pub use pallet_verification_protocol;
-
-///import the pallet verification protocol
-pub use pallet_verification_protocol;
-
 // use pallet_did::types::Attribute;
 
 /// An index to a block.
@@ -1374,21 +1368,21 @@ impl pallet_verification_protocol::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type PalletId = TreasuryPalletId;
 	type Currency = Balances;
-	type Balance = u128;
+	// type Balance = u128;
 
 	type MaxLengthListOfDocuments = MaxLengthListOfDocuments;
-	/// Minimum number of verification parameters required at the reveal phase. say X
-	type MinCountatVPRevealStage = MinCountatVPRevealStage;
-	/// Count multiplier to above at the allotment stage. say 4 * X
-	type MinCountatAllotStage = MinCountatAllotStage;
-	/// Count multiplier to minimum at the Ack stage. say 3 * X
-	type MinCountatAckAcceptStage = MinCountatAckAcceptStage;
-	/// Count multiplier to minimum at the Submit Verification Para stage. say 2 * X
-	type MinCountatSubmitVPStage = MinCountatSubmitVPStage;
-	/// Count multiplier to minimum at the Reveal stage. say X equal to the minimum
-	type MinCountatRevealStage = MinCountatRevealStage;
-	/// Waiting period at each stage to receive CountXat<stage> submissions. say 1hr (3600/6 = 600 blocks)
-	type MaxWaitingTimeAtStages = MaxWaitingTimeAtStages;
+	// Minimum number of verification parameters required at the reveal phase. say X
+	// type MinCountatVPRevealStage = MinCountatVPRevealStage;
+	// /// Count multiplier to above at the allotment stage. say 4 * X
+	// type MinCountatAllotStage = MinCountatAllotStage;
+	// /// Count multiplier to minimum at the Ack stage. say 3 * X
+	// type MinCountatAckAcceptStage = MinCountatAckAcceptStage;
+	// /// Count multiplier to minimum at the Submit Verification Para stage. say 2 * X
+	// type MinCountatSubmitVPStage = MinCountatSubmitVPStage;
+	// /// Count multiplier to minimum at the Reveal stage. say X equal to the minimum
+	// type MinCountatRevealStage = MinCountatRevealStage;
+	// /// Waiting period at each stage to receive CountXat<stage> submissions. say 1hr (3600/6 = 600 blocks)
+	// type MaxWaitingTimeAtStages = MaxWaitingTimeAtStages;
 }
 
 parameter_types! {
