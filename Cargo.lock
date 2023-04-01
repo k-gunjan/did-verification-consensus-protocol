@@ -1825,6 +1825,7 @@ dependencies = [
  "sc-transaction-pool",
  "sc-transaction-pool-api",
  "serde",
+ "serde_json",
  "sp-api",
  "sp-authority-discovery",
  "sp-authorship",

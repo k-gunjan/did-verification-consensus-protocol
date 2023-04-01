@@ -7,7 +7,8 @@ use felidae_node_runtime::{
 
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sc_chain_spec::ChainSpecExtension;
-use sc_service::ChainType;
+use sc_service::{ChainType, Properties};
+use serde_json::map::Map;
 use sc_telemetry::TelemetryEndpoints;
 use serde::{Deserialize, Serialize};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
@@ -42,6 +43,25 @@ pub struct Extensions {
 pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig, Extensions>;
 
 type AccountPublic = <Signature as Verify>::Signer;
+
+fn get_common_properties_map() -> Properties {
+    let mut properties = Map::new();
+    properties.insert("tokenSymbol".into(), "PAN".into());
+    properties.insert("tokenDecimals".into(), 12.into());
+    properties
+}
+
+fn get_dev_properties() -> Properties {
+    let mut properties = get_common_properties_map();
+    properties.insert("ss58Format".into(), 42.into());
+    properties
+}
+
+// fn get_mainnet_properties() -> Properties {
+//   let mut properties = get_common_properties_map();
+//   properties.insert("ss58Format".into(), 51.into());
+//   properties
+// }
 
 fn session_keys(
 	grandpa: GrandpaId,
@@ -153,7 +173,7 @@ pub fn staging_testnet_config() -> ChainSpec {
 		),
 		None,
 		None,
-		None,
+		Some(get_dev_properties()),
 		Default::default(),
 	)
 }
@@ -329,7 +349,7 @@ pub fn development_config() -> ChainSpec {
 		None,
 		None,
 		None,
-		None,
+		Some(get_dev_properties()),
 		Default::default(),
 	)
 }
