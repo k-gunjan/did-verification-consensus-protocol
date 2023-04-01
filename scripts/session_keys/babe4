@@ -1,0 +1,10 @@
+{
+    "jsonrpc":"2.0",
+    "id":1,
+    "method":"author_insertKey",
+    "params": [
+        "babe",
+        "universe toast because trouble bulb inmate cruel shock erode border hour entry//4//babe",
+        "0x94a538cf115ae998fb1c43c364b0f66b7d9d7cff6eb0e78b0144be031c46a91b"
+    ]
+}

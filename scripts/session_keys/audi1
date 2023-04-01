@@ -1,0 +1,10 @@
+{
+    "jsonrpc":"2.0",
+    "id":1,
+    "method":"author_insertKey",
+    "params": [
+        "audi",
+        "universe toast because trouble bulb inmate cruel shock erode border hour entry//1//authority_discovery",
+        "0xe4fdaf83334c46d90be17c5be7374f28bf450bbfdad2cd48275e038c824e384d"
+    ]
+}
