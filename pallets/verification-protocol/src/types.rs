@@ -30,6 +30,12 @@ macro_rules! act_on_fulfilled {
 		if $obj.state.$stage.pending_count_of_verifiers == 0 {
 			$obj.state.$stage.state = false;
 			$obj.state.$stage.ended_at = Some($current_block);
+			if stringify!($stage) == "reveal" {
+				//start the next stage: evaluation of revealed parameters
+				$obj.state.stage = VerificationStages::Eval;
+				$obj.state.eval_vp_state = Some(EvalVpState::Pending);
+				$obj.state.eval_vp_result = Some(EvalVpResult::Pending);
+			}
 		}
 	};
 }
@@ -127,7 +133,7 @@ pub enum EvalVpResult {
 	#[default]
 	Pending,
 	/// Accepted and ll proceed to created DID
-	Accepted,
+	Accepted(ConsumerDetails),
 	/// Rejected and DID ll not be created
 	Rejected,
 	/// Eval could not result into a clear Accept or Reject. Consider it Failed
@@ -139,7 +145,6 @@ pub enum EvalVpResult {
 pub enum EvalVpState {
 	#[default]
 	Pending,
-	Wip,
 	Done,
 }
 
@@ -170,7 +175,7 @@ pub enum VerifierState {
 
 /// verification parameter submitted by the verifier
 /// Either reject or Accept with the hash of the verification data
-#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug)]
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug, Ord, Eq, PartialOrd)]
 #[scale_info(skip_type_params(T))]
 pub enum RevealedParameters {
 	Reject,
@@ -207,13 +212,14 @@ impl<T: Config> VerificationProcessData<T> {
 
 /// Struct of consumer personal data
 /// hash1 may be hash of (name + DOB + Fathers name)
-#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug)]
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug, Ord, Eq, PartialOrd)]
 pub struct ConsumerDetails {
 	pub country: BoundedVec<u8, ConstU32<50>>,
 	pub id_issuing_authority: BoundedVec<u8, ConstU32<200>>,
-	pub hash1_name_dob_father: H256,
-	pub hash2_name_dob_mother: H256,
-	pub hash3_name_dob_guardian: H256,
+	pub type_of_id: BoundedVec<u8, ConstU32<200>>,
+	pub hash1_name_dob_father: Option<H256>,
+	pub hash2_name_dob_mother: Option<H256>,
+	pub hash3_name_dob_guardian: Option<H256>,
 }
 
 /// Struct of verification protocol parameters
@@ -232,10 +238,10 @@ impl Default for ProtocolParameterValues {
 	fn default() -> Self {
 		ProtocolParameterValues {
 			max_length_list_of_documents: 150,
-			min_count_at_allot_stage: 20,
-			min_count_at_ack_accept_stage: 15,
-			min_count_at_submit_vp_stage: 10,
-			min_count_at_reveal_stage: 5,
+			min_count_at_allot_stage: 4,
+			min_count_at_ack_accept_stage: 4,
+			min_count_at_submit_vp_stage: 4,
+			min_count_at_reveal_stage: 4,
 			max_waiting_time_at_stages: 50,
 		}
 	}

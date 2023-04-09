@@ -17,52 +17,36 @@
 
 //! RPC interface for the transaction payment pallet.
 // #![cfg_attr(not(feature = "std"), no_std)]
-use std::{ sync::Arc};
+use std::sync::Arc;
 
-use codec::{Codec};
+use codec::Codec;
 use jsonrpsee::{
-	core::{
-		// Error as JsonRpseeError, 
-		RpcResult},
+	core::RpcResult,
 	proc_macros::rpc,
-	types::error::{CallError, 
-		// ErrorCode, 
-		ErrorObject},
+	types::error::{CallError, ErrorObject},
 };
 
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_core::Bytes;
 // use sp_rpc::number::NumberOrHex;
-use sp_runtime::{
-	generic::BlockId,
-	traits::{Block as BlockT},
-};
+use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 
 use pallet_did::types::Attribute;
 pub use pallet_did_rpc_runtime_api::ReadAttributeApi as ReadAttributeRuntimeApi;
-// use pallet_did_rpc_runtime_api::ReadAttributeApi;// as ReadAttributeApi;
-use sp_runtime::codec::{Decode, Encode};
-use scale_info::TypeInfo;
-// use std::io::Bytes;
-use node_primitives::{
-	AccountId, 
-	Moment, 
-	BlockNumber, 
-	// Balance, 
-	// Block, 
-	// Hash, 
-	// Index
-};
 
+use scale_info::TypeInfo;
+use sp_runtime::codec::{Decode, Encode};
+
+use node_primitives::{AccountId, BlockNumber, Moment};
 
 /// Attributes or properties that make an DID reply.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Encode, Decode, Default, TypeInfo)]
 pub struct RpcDidAttribute<BlockNumber, Moment> {
-    pub name: Vec<u8>,
-    pub value: Vec<u8>,
-    pub validity: BlockNumber,
-    pub creation: Moment,
+	pub name: Vec<u8>,
+	pub value: Vec<u8>,
+	pub validity: BlockNumber,
+	pub creation: Moment,
 }
 
 impl From<Attribute<BlockNumber, Moment>> for RpcDidAttribute<BlockNumber, Moment> {
@@ -76,14 +60,16 @@ impl From<Attribute<BlockNumber, Moment>> for RpcDidAttribute<BlockNumber, Momen
 	}
 }
 
-
 #[rpc(client, server)]
 // pub trait TransactionPaymentApi<BlockHash, ResponseType> {
 pub trait ReadAttributeApi<BlockHash, AccountId, Blocknumber, Moment> {
 	#[method(name = "read_did_attribute")]
-	fn get_did_attributes(&self, did: AccountId, name: Bytes, at: Option<BlockHash>) -> RpcResult<Option<Attribute<BlockNumber, Moment>>>;
-	#[method(name = "read_a_dummy_value")]
-	fn get_value(&self, i:u32, j:u32, at: Option<BlockHash>) -> RpcResult<u32>;
+	fn get_did_attributes(
+		&self,
+		did: AccountId,
+		name: Bytes,
+		at: Option<BlockHash>,
+	) -> RpcResult<Option<Attribute<BlockNumber, Moment>>>;
 }
 
 /// Provides RPC methods to query a dispatchable's class, weight and fee.
@@ -117,8 +103,7 @@ impl From<Error> for i32 {
 	}
 }
 
-impl<C, Block>
-    ReadAttributeApiServer<<Block as BlockT>::Hash, AccountId, BlockNumber, Moment >
+impl<C, Block> ReadAttributeApiServer<<Block as BlockT>::Hash, AccountId, BlockNumber, Moment>
 	for Did<C, Block>
 where
 	Block: BlockT,
@@ -130,32 +115,14 @@ where
 {
 	fn get_did_attributes(
 		&self,
-		did: AccountId, 
+		did: AccountId,
 		name: Bytes,
 		at: Option<Block::Hash>,
 	) -> RpcResult<Option<Attribute<BlockNumber, Moment>>> {
 		let api = self.client.runtime_api();
 		let at = BlockId::hash(at.unwrap_or_else(|| self.client.info().best_hash));
 
-		api.read_attribute(&at, did, name.to_vec()).map_err(|e| {
-			CallError::Custom(ErrorObject::owned(
-				Error::RuntimeError.into(),
-				"Unable to query DID info.",
-				Some(e.to_string()),
-			))
-			.into()
-		})
-	}
-	fn get_value(
-		&self,
-		i:u32,
-		j:u32,
-		at: Option<Block::Hash>,
-	) -> RpcResult<u32> {
-		let api = self.client.runtime_api();
-		let at = BlockId::hash(at.unwrap_or_else(|| self.client.info().best_hash));
-
-		api.get_a_fixed_value(&at, i,j).map_err(|e| {
+		api.read(&at, did, name.to_vec()).map_err(|e| {
 			CallError::Custom(ErrorObject::owned(
 				Error::RuntimeError.into(),
 				"Unable to query DID info.",

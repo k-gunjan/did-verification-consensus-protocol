@@ -16,7 +16,6 @@ sp_api::decl_runtime_apis! {
 		Blocknumber: Codec,
 		Moment: Codec,
 	{
-		fn read_attribute(did: AccountId, name: Vec<u8>) -> Option<Attribute<Blocknumber, Moment>>;
-		fn get_a_fixed_value(i:u32, j:u32) -> u32;
+		fn read(did: AccountId, name: Vec<u8>) -> Option<Attribute<Blocknumber, Moment>>;
 	}
 }
