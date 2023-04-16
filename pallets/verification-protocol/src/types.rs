@@ -2,7 +2,7 @@ use codec::{Decode, Encode};
 
 use crate::Config;
 
-use frame_support::{inherent::Vec, pallet_prelude::ConstU32, BoundedVec};
+use frame_support::{pallet_prelude::ConstU32, BoundedVec};
 
 use scale_info::TypeInfo;
 use sp_core::H256;
@@ -30,6 +30,12 @@ macro_rules! act_on_fulfilled {
 		if $obj.state.$stage.pending_count_of_verifiers == 0 {
 			$obj.state.$stage.state = false;
 			$obj.state.$stage.ended_at = Some($current_block);
+			if stringify!($stage) == "reveal" {
+				//start the next stage: evaluation of revealed parameters
+				$obj.state.stage = VerificationStages::Eval;
+				$obj.state.eval_vp_state = Some(EvalVpState::Pending);
+				$obj.state.eval_vp_result = Some(EvalVpResult::Pending);
+			}
 		}
 	};
 }
@@ -48,6 +54,15 @@ macro_rules! start_stage {
 		$obj.state.$stage.pending_count_of_verifiers += $pending_count_increment;
 		// state duration to be set not incremented
 		$obj.state.$stage.state_duration = $wait_time;
+
+		// update verification request stage to indicate Reveal state
+		// and close previous stages if starting reveal stage
+		if stringify!($stage) == "reveal" {
+			$obj.state.stage = VerificationStages::Reveal;
+			$obj.state.allot.state = false;
+			$obj.state.ack.state = false;
+			$obj.state.submit_vp.state = false;
+		}
 	};
 }
 pub use start_stage;
@@ -118,7 +133,7 @@ pub enum EvalVpResult {
 	#[default]
 	Pending,
 	/// Accepted and ll proceed to created DID
-	Accepted,
+	Accepted(ConsumerDetails),
 	/// Rejected and DID ll not be created
 	Rejected,
 	/// Eval could not result into a clear Accept or Reject. Consider it Failed
@@ -130,7 +145,6 @@ pub enum EvalVpResult {
 pub enum EvalVpState {
 	#[default]
 	Pending,
-	Wip,
 	Done,
 }
 
@@ -161,7 +175,7 @@ pub enum VerifierState {
 
 /// verification parameter submitted by the verifier
 /// Either reject or Accept with the hash of the verification data
-#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug)]
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug, Ord, Eq, PartialOrd)]
 #[scale_info(skip_type_params(T))]
 pub enum RevealedParameters {
 	Reject,
@@ -198,10 +212,11 @@ impl<T: Config> VerificationProcessData<T> {
 
 /// Struct of consumer personal data
 /// hash1 may be hash of (name + DOB + Fathers name)
-#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug)]
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug, Ord, Eq, PartialOrd)]
 pub struct ConsumerDetails {
 	pub country: BoundedVec<u8, ConstU32<50>>,
 	pub id_issuing_authority: BoundedVec<u8, ConstU32<200>>,
+	pub type_of_id: BoundedVec<u8, ConstU32<200>>,
 	pub hash1_name_dob_father: H256,
 	pub hash2_name_dob_mother: H256,
 	pub hash3_name_dob_guardian: H256,
@@ -212,7 +227,6 @@ pub struct ConsumerDetails {
 #[scale_info(skip_type_params(T))]
 pub struct ProtocolParameterValues {
 	pub max_length_list_of_documents: u16,
-	pub min_count_at_vp_reveal_stage: u16,
 	pub min_count_at_allot_stage: u16,
 	pub min_count_at_ack_accept_stage: u16,
 	pub min_count_at_submit_vp_stage: u16,
@@ -224,22 +238,11 @@ impl Default for ProtocolParameterValues {
 	fn default() -> Self {
 		ProtocolParameterValues {
 			max_length_list_of_documents: 150,
-			min_count_at_vp_reveal_stage: 5,
-			min_count_at_allot_stage: 20,
-			min_count_at_ack_accept_stage: 15,
-			min_count_at_submit_vp_stage: 10,
-			min_count_at_reveal_stage: 5,
+			min_count_at_allot_stage: 4,
+			min_count_at_ack_accept_stage: 4,
+			min_count_at_submit_vp_stage: 4,
+			min_count_at_reveal_stage: 4,
 			max_waiting_time_at_stages: 50,
 		}
 	}
-}
-
-#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug)]
-// #[scale_info(skip_type_params(T))]
-pub struct RevealedData {
-	pub country: Vec<u8>,
-	pub id_issuing_authority: Vec<u8>,
-	pub hash1_name_dob_father: Vec<u8>,
-	pub hash2_name_dob_mother: Vec<u8>,
-	pub hash3_name_dob_guardian: Vec<u8>,
 }

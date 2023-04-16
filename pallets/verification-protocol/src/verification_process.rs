@@ -71,4 +71,10 @@ pub trait VerificationProcess<C: Config> {
 	/// more verifiers if wait is over and not completely fulfilled
 	/// This takes list of verification request ids to act on
 	fn act_on_wait_over_for_submit_vp(list_verification_req: Vec<&C::AccountId>) -> DispatchResult;
+
+	/// Start the reveal stage
+	fn start_reveal(list_verification_req: Vec<&C::AccountId>) -> DispatchResult;
+
+	/// eval the submissions to get the result: accept/reject/can't decide
+	fn eval(list_verification_req: Vec<&C::AccountId>) -> DispatchResult;
 }

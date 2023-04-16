@@ -84,6 +84,9 @@ pub use pallet_staking::StakerStatus;
 /// Import the template pallet.
 pub use pallet_template;
 
+/// Import pallet verifiers
+pub use verifiers;
+
 /// Import the adoption pallet.
 pub use pallet_adoption;
 
@@ -579,8 +582,8 @@ impl Get<Option<BalancingConfig>> for OffchainRandomBalancing {
 			max => {
 				let seed = sp_io::offchain::random_seed();
 				let random = <u32>::decode(&mut TrailingZeroInput::new(&seed))
-					.expect("input is padded with zeroes; qed")
-					% max.saturating_add(1);
+					.expect("input is padded with zeroes; qed") %
+					max.saturating_add(1);
 				random as usize
 			},
 		};
@@ -1087,6 +1090,13 @@ impl pallet_template::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 }
 
+// Configure the verifier pallets
+impl verifiers::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type PalletId = TreasuryPalletId;
+}
+
 // //parameters of pallet verification protocol
 parameter_types! {
 pub const MaxLengthListOfDocuments: u32 = 150;
@@ -1175,6 +1185,7 @@ construct_runtime!(
 		AdoptionModule: pallet_adoption,
 		DidModule: pallet_did,
 		VerificationProtocol: pallet_verification_protocol,
+		Verifiers: verifiers,
 	}
 );
 
@@ -1249,6 +1260,7 @@ mod benches {
 		[pallet_adoption, AdoptionModule]
 		[pallet_did, DidModule]
 		[pallet_verification_protocol, VerificationProtocol]
+		[verifiers, Verifiers]
 	);
 }
 
