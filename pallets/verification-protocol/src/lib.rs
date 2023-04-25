@@ -807,17 +807,15 @@ pub mod pallet {
 			// // check new task pending for allotment
 
 			if pending_eval.len() > 0 {
-				log::info!("%%%--%%% found pending for eval, count: :{:?}", pending_eval.len(),);
-
 				Self::eval(pending_eval)?;
 			}
-			if pending_allotments.len() > 0 {
-				log::info!(
-					"%%%--%%% found pending allotments:{:?}, and active verifiers:{:?}",
-					pending_allotments.len(),
-					active_verifiers.len()
-				);
-			}
+
+			// if pending_allotments.len() > 0 {
+			// 	log::info!(
+			// 		pending_allotments.len(),
+			// 		active_verifiers.len()
+			// 	);
+			// }
 
 			if pending_allotments.len() > 0 && active_verifiers.len() > 0 {
 				Self::allot_verification_task(active_verifiers, pending_allotments)?;
