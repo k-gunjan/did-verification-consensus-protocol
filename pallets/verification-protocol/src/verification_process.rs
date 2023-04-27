@@ -1,7 +1,5 @@
-use crate::Config;
-use frame_support::dispatch::DispatchResult;
-use frame_support::inherent::Vec;
-// use crate::types::*;
+use crate::{types::VerifierUpdateData, Config, Error};
+use frame_support::{dispatch::DispatchResult, inherent::Vec};
 // use frame_support::pallet_prelude::ConstU32;
 // use frame_support::traits::ConstU8;
 // use frame_support::BoundedVec;
@@ -76,5 +74,7 @@ pub trait VerificationProcess<C: Config> {
 	fn start_reveal(list_verification_req: Vec<&C::AccountId>) -> DispatchResult;
 
 	/// eval the submissions to get the result: accept/reject/can't decide
-	fn eval(list_verification_req: Vec<&C::AccountId>) -> DispatchResult;
+	fn eval(
+		list_verification_req: Vec<&C::AccountId>,
+	) -> Result<Vec<(C::AccountId, VerifierUpdateData)>, Error<C>>;
 }

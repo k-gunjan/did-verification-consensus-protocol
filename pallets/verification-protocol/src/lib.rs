@@ -46,9 +46,6 @@ pub mod pallet {
 
 	type BalanceOf<T> =
 		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-	// type AccountOf<T> = <T as frame_system::Config>::AccountId;
-
-	// type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
@@ -65,6 +62,9 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// maximum lenght of parameter list_of_documents submitted and stored. its a CID
 		type MaxLengthListOfDocuments: Get<u32>;
+
+		// /// pallet DID API
+		// type Did: DidPalletProvider;
 	}
 
 	// storage to hold the list of verifiers
@@ -727,34 +727,34 @@ pub mod pallet {
 			Ok(())
 		}
 
-		fn eval(list_verification_req: Vec<&T::AccountId>) -> DispatchResult {
-			// let current_block: T::BlockNumber = <frame_system::Pallet<T>>::block_number();
-			// let parameters = Self::protocol_parameters();
+		fn eval(
+			list_verification_req: Vec<&T::AccountId>,
+		) -> Result<Vec<(T::AccountId, VerifierUpdateData)>, Error<T>> {
+			let mut combined_result: Vec<(T::AccountId, VerifierUpdateData)> = Vec::new();
 			for consumer_id in list_verification_req {
-				VerificationRequests::<T>::try_mutate(consumer_id, |v| -> DispatchResult {
-					let mut vr = v.as_mut().ok_or(Error::<T>::NoDidReqFound)?;
+				match VerificationRequests::<T>::try_mutate(
+					consumer_id,
+					|v: &mut Option<VerificationRequest<T>>| -> Result<Vec<(T::AccountId, VerifierUpdateData)>, Error<T>> {
+						let mut vr = v.as_mut().ok_or(Error::<T>::NoDidReqFound)?;
 
-					let revealed_data_list: Vec<RevealedParameters> =
-						VerificationProcessRecords::<T>::iter_prefix_values(
-							vr.consumer_account_id.clone(),
-						)
-						.map(|vpr| {
-							if let Some(rd) = vpr.revealed_data {
-								// log::info!("-------**----------revealed data: {:?}", rd.1);
-								return rd.1
-							}
-							return RevealedParameters::Reject
-						})
-						.collect();
-					// log::info!("total number of data for req: {:?}", revealed_data_list);
-					let result: EvalVpResult = Self::eval_result(&revealed_data_list);
-
-					vr.state.eval_vp_result = Some(result);
-					vr.state.eval_vp_state = Some(EvalVpState::Done);
-					Ok(())
-				})?;
+						let revealed_data_list: Vec<VerificationProcessData<T>> =
+						// let revealed_data_list: Vec<RevealedParameters> =
+							VerificationProcessRecords::<T>::iter_prefix_values(
+								vr.consumer_account_id.clone(),
+							)
+							.map(|vpr| 	vpr)
+							.collect();
+						let (result, incentive_data) = VerificationProcessData::eval_incentive(revealed_data_list);
+						vr.state.eval_vp_result = Some(result);
+						vr.state.eval_vp_state = Some(EvalVpState::Done);
+						Ok(incentive_data)
+					},
+				) {
+					Ok(d) => combined_result.extend(d),
+					Err(e) => return Err(e),
+				}
 			}
-			Ok(())
+			Ok(combined_result)
 		}
 	}
 
@@ -807,15 +807,9 @@ pub mod pallet {
 			// // check new task pending for allotment
 
 			if pending_eval.len() > 0 {
-				Self::eval(pending_eval)?;
+				let result = Self::eval(pending_eval)?;
+				//TODO: act on result in verifiers pallet
 			}
-
-			// if pending_allotments.len() > 0 {
-			// 	log::info!(
-			// 		pending_allotments.len(),
-			// 		active_verifiers.len()
-			// 	);
-			// }
 
 			if pending_allotments.len() > 0 && active_verifiers.len() > 0 {
 				Self::allot_verification_task(active_verifiers, pending_allotments)?;
@@ -825,7 +819,7 @@ pub mod pallet {
 			// END--check new task pending for allotment
 			//---start reveal check ---
 			if submit_vp_completed.len() > 0 {
-				log::info!("%%%--%%% found start reveal cases:{:?}", submit_vp_completed.len());
+				// log::info!("%%%--%%% found start reveal cases:{:?}", submit_vp_completed.len());
 				Self::start_reveal(submit_vp_completed)?;
 			};
 			// end --start reveal check --
@@ -887,48 +881,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub(crate) fn eval_result(params: &[RevealedParameters]) -> EvalVpResult {
-			let mut counts = BTreeMap::new();
-			for p in params {
-				// let discr = discriminant(p);
-				// let count = counts.entry(discr).or_insert(0);
-				let count = counts.entry(p).or_insert(0);
-				*count += 1;
-			}
-			// counts
-			let mut max_count = 0;
-			let mut max_variant = None;
-			let mut max_count_2 = 0;
-			let mut max_variant_2 = None;
-			for (discr, count) in &counts {
-				if *count > max_count {
-					max_count = *count;
-					max_variant = Some(discr);
-				} else if *count > max_count_2 {
-					max_count_2 = *count;
-					max_variant_2 = Some(discr);
-				}
-			}
-
-			if max_variant.is_some() {
-				if max_variant_2.is_some() {
-					if max_count == max_count_2 {
-						// log::info!("no clear winner. items are: {counts:?}");
-						// there is a tie and no clear manjority
-						max_variant = None;
-					}
-				}
-			}
-			let result: EvalVpResult = match max_variant {
-				Some(variant) => match variant {
-					RevealedParameters::Reject => EvalVpResult::Rejected,
-					RevealedParameters::Accept(d) => EvalVpResult::Accepted(d.clone()),
-				},
-				None => EvalVpResult::CantDecideAkaFailed,
-			};
-			// log::info!("The '{:?}' variant appeared {:?} times", variant, max_count);
-			result
-		}
+		// pub(crate) fn ll(result: EvalVpResult, submissions:)
 
 		pub(crate) fn parse_clear_parameters(
 			clear_parameters: &[u8],

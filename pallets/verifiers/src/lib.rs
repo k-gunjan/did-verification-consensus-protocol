@@ -5,6 +5,8 @@
 /// <https://docs.substrate.io/reference/frame-pallets/>
 pub use pallet::*;
 
+// ///import the pallet verification protocol
+// pub use pallet_verification_protocol;
 pub mod types;
 
 #[cfg(test)]
@@ -18,6 +20,7 @@ mod benchmarking;
 
 #[frame_support::pallet]
 pub mod pallet {
+
 	use crate::types::*;
 	use frame_support::sp_runtime::SaturatedConversion;
 	use frame_support::{
@@ -28,11 +31,12 @@ pub mod pallet {
 		PalletId,
 	};
 	use frame_system::pallet_prelude::*;
+	// use pallet_verification_protocol::types::VerifierUpdateData;
 	use sp_runtime::{
 		traits::{CheckedAdd, Zero},
 		ArithmeticError,
 	};
-
+	use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
