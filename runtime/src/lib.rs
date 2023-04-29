@@ -1110,6 +1110,7 @@ impl pallet_verification_protocol::Config for Runtime {
 	// type Balance = u128;
 
 	type MaxLengthListOfDocuments = MaxLengthListOfDocuments;
+	type VerifiersProvider = Verifiers;
 }
 
 parameter_types! {

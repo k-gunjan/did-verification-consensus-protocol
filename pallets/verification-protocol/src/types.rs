@@ -1,6 +1,7 @@
 use codec::{Decode, Encode};
 
 use crate::Config;
+pub use verifiers::types::{Increment, VerifierUpdateData};
 
 use frame_support::{pallet_prelude::ConstU32, BoundedVec};
 
@@ -294,19 +295,19 @@ pub enum Incentive<Balance> {
 	Penalty(Balance),
 }
 
-#[derive(Clone, Debug)]
-pub enum Increment {
-	Accepted(u8),
-	UnAccepted(u8),
-	NotCompleted(u8),
-}
+// #[derive(Clone, Debug)]
+// pub enum Increment {
+// 	Accepted(u8),
+// 	UnAccepted(u8),
+// 	NotCompleted(u8),
+// }
 
-#[derive(Debug)]
-pub struct VerifierUpdateData {
-	// account_id: A,
-	incentive_factor: f64,
-	increment: Increment,
-}
+// #[derive(Debug)]
+// pub struct VerifierUpdateData {
+// 	// account_id: A,
+// 	incentive_factor: f64,
+// 	increment: Increment,
+// }
 
 impl<T: Config> VerificationProcessData<T> {
 	pub fn eval_incentive(

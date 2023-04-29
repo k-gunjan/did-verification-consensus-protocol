@@ -26,6 +26,9 @@ sp-core = { version = "6.0.0", default-features = false, git = "https://github.c
 sp-runtime = { version = "6.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.30" }
 sp-io = { version = "6.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.30" }
 sp-std = { version = "4.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.30" }
+verifiers = { version = "4.0.0-dev", default-features = false, path = "../verifiers" }
+
+
 
 [dev-dependencies]
 log = { version = "0.4.17", default-features = false }

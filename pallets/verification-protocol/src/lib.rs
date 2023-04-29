@@ -7,7 +7,7 @@ pub use pallet::*;
 pub mod types;
 pub mod verification_process;
 // pub use log;
-
+use verifiers;
 #[cfg(test)]
 mod mock;
 
@@ -39,6 +39,10 @@ pub mod pallet {
 	// use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 	use sp_std::collections::btree_map::BTreeMap;
 
+	use verifiers::{
+		pallet::VerifiersProvider,
+		types::{Increment, VerifierUpdateData},
+	};
 	#[pallet::pallet]
 	#[pallet::without_storage_info]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -63,8 +67,11 @@ pub mod pallet {
 		/// maximum lenght of parameter list_of_documents submitted and stored. its a CID
 		type MaxLengthListOfDocuments: Get<u32>;
 
-		// /// pallet DID API
-		// type Did: DidPalletProvider;
+		/// pallet verifier API
+		type VerifiersProvider: VerifiersProvider<
+			AccountId = Self::AccountId,
+			UpdateData = VerifierUpdateData,
+		>;
 	}
 
 	// storage to hold the list of verifiers
@@ -200,42 +207,6 @@ pub mod pallet {
 	// Dispatchable functions must be annotated with a weight and must return a DispatchResult.
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// Register a verifier. Takes following parameters
-		/// 1. account_id : of the verifier and
-		/// 2. deposit amount
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1).ref_time())]
-		pub fn register_verifier(origin: OriginFor<T>, deposit: BalanceOf<T>) -> DispatchResult {
-			let who = ensure_signed(origin)?;
-			// check if the verifier is already registered
-			ensure!(
-				!<Verifiers<T>>::contains_key(who.clone()),
-				Error::<T>::VerifierAlreadyRegistered
-			);
-			T::Currency::transfer(
-				&who,
-				&Self::account_id(who.clone()),
-				deposit,
-				ExistenceRequirement::AllowDeath,
-			)?;
-
-			let verifier = Verifier {
-				account_id: who.clone(),
-				score: 0u32,
-				state: VerifierState::Pending,
-				count_of_accepted_submissions: 0u128,
-				count_of_rejected_submissions: 0u128,
-				count_of_incompleted_processes: 0u128,
-			};
-
-			// Update Verifiers storage.
-			<Verifiers<T>>::insert(who.clone(), verifier.clone());
-
-			// Emit an event.
-			Self::deposit_event(Event::VerifierRegistrationRequest(who));
-			// Return a successful DispatchResultWithPostInfo
-			Ok(())
-		}
-
 		/// Submit new did creation request. Takes following parameters
 		/// 1. list of documents submitted for verification. Douments are uploaded in
 		/// IPFS and CIDs are submitted here
@@ -760,24 +731,8 @@ pub mod pallet {
 
 	impl<T: Config> Pallet<T> {
 		pub(crate) fn app_chain_tasks(current_block: T::BlockNumber) -> DispatchResult {
-			let verifiers: Vec<Verifier<T::AccountId>> = Verifiers::<T>::iter_values().collect();
-			// log::info!("+++++++++++++found {:?} verifiers in the system", verifiers.len());
-
-			// #####--Update New Verifiers----------//
-			for v in verifiers.iter().filter(|v| v.state == VerifierState::Pending) {
-				log::info!("+++++++++++++Updating verifier:{:?} in the system", &v.account_id);
-				Verifiers::<T>::mutate(&v.account_id, |v| {
-					if let Some(vr) = v {
-						vr.state = VerifierState::Active;
-					}
-				});
-			}
-			// get sorted list of verifiers to receive tasks
-			let active_verifiers: Vec<T::AccountId> = Verifiers::<T>::iter_values()
-				.filter(|v| v.state == VerifierState::Active || v.state == VerifierState::Pending)
-				.map(|v| v.account_id)
-				.collect();
-			// #####-----END--Update New Verifiers----//
+			// // get sorted list of verifiers to receive tasks
+			let active_verifiers: Vec<T::AccountId> = T::VerifiersProvider::get_verifiers();
 
 			// get the list of pending tasks
 			let verification_tasks = VerificationRequests::<T>::iter_values().collect::<Vec<_>>();
@@ -807,7 +762,14 @@ pub mod pallet {
 			// // check new task pending for allotment
 
 			if pending_eval.len() > 0 {
-				let result = Self::eval(pending_eval)?;
+				let result = Self::eval(pending_eval);
+				match result {
+					Ok(s) =>
+						if let Err(_) = T::VerifiersProvider::update_verifier_profiles(s) {
+							log::info!("error in updating the incentive feed to verifier profiles");
+						},
+					Err(_) => log::info!("Error in evaluating incentive data feed"),
+				}
 				//TODO: act on result in verifiers pallet
 			}
 

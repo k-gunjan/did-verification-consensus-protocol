@@ -58,6 +58,7 @@ pub mod pallet {
 		/// The Currency handler for the pallet.
 		type Currency: Currency<Self::AccountId>;
 
+		#[pallet::constant]
 		type PalletId: Get<PalletId>;
 	}
 
@@ -205,17 +206,10 @@ pub mod pallet {
 
 	impl<T: Config> Pallet<T> {
 		pub(crate) fn sub_account_id(id: T::AccountId) -> T::AccountId {
-			// Convert this value amalgamated with the a secondary “sub” value into an account ID,
-			// truncating any unused bytes. This is infallible.
-			// Also, if the seed provided to this function is greater than the number of bytes which
-			// fit into this AccountId type, then it will lead to truncation of the seed, and
-			// potentially non-unique accounts.
 			T::PalletId::get().into_sub_account_truncating(id)
 		}
 
 		pub(crate) fn pallet_account_id() -> Result<T::AccountId, Error<T>> {
-			// Convert into an account ID, checking that all bytes of the seed are being used in the
-			// final AccountId generated. If any bytes are dropped, this returns None.
 			if let Some(account) = T::PalletId::get().try_into_account() {
 				Ok(account)
 			} else {
@@ -223,7 +217,11 @@ pub mod pallet {
 			}
 		}
 
-		pub(crate) fn update_verifier_profile(
+		pub(crate) fn account_id() -> T::AccountId {
+			T::PalletId::get().into_account_truncating()
+		}
+
+		pub(crate) fn update_profile(
 			who: T::AccountId,
 			update_data: UpdateData,
 		) -> Result<(), ArithmeticError> {
@@ -250,6 +248,63 @@ pub mod pallet {
 				}
 				Ok(())
 			})?;
+			Ok(())
+		}
+	}
+
+	pub trait VerifiersProvider {
+		type AccountId;
+		type UpdateData;
+
+		fn get_verifiers() -> Vec<Self::AccountId>;
+		fn update_verifier_profiles(
+			data: Vec<(Self::AccountId, Self::UpdateData)>,
+		) -> Result<(), ArithmeticError>;
+	}
+
+	impl<T: Config> VerifiersProvider for Pallet<T> {
+		type AccountId = T::AccountId;
+		type UpdateData = VerifierUpdateData;
+
+		fn get_verifiers() -> Vec<Self::AccountId> {
+			let verifiers: Vec<T::AccountId> = Verifiers::<T>::iter_values()
+				.filter(|v| v.state == VerifierState::Active)
+				.map(|v| v.account_id)
+				.collect();
+			verifiers
+		}
+		fn update_verifier_profiles(
+			data: Vec<(Self::AccountId, Self::UpdateData)>,
+		) -> Result<(), ArithmeticError> {
+			for (who, update_data) in data.iter() {
+				Verifiers::<T>::try_mutate(who, |v| -> Result<(), ArithmeticError> {
+					if let Some(ref mut verifier) = v {
+						match update_data.increment {
+							Increment::Accepted(n) => {
+								verifier.count_of_accepted_submissions = verifier
+									.count_of_accepted_submissions
+									.checked_add(n.into())
+									.ok_or(ArithmeticError::Overflow)?;
+							},
+							Increment::UnAccepted(n) => {
+								verifier.count_of_un_accepted_submissions = verifier
+									.count_of_un_accepted_submissions
+									.checked_add(n.into())
+									.ok_or(ArithmeticError::Overflow)?;
+							},
+							Increment::NotCompleted(n) => {
+								verifier.count_of_incompleted_processes = verifier
+									.count_of_incompleted_processes
+									.checked_add(n.into())
+									.ok_or(ArithmeticError::Overflow)?;
+							},
+						}
+					} else {
+						log::info!("+++++++++++++verifier not found+++++++++++++++++");
+					}
+					Ok(())
+				})?;
+			}
 			Ok(())
 		}
 	}

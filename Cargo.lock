@@ -5010,6 +5010,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "verifiers",
 ]
 
 [[package]]

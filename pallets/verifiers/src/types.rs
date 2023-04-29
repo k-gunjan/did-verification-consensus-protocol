@@ -6,6 +6,20 @@ use frame_support::inherent::Vec;
 use sp_core::MaxEncodedLen;
 use sp_runtime::{traits::Zero, ArithmeticError};
 
+#[derive(Clone, Debug)]
+pub enum Increment {
+	Accepted(u8),
+	UnAccepted(u8),
+	NotCompleted(u8),
+}
+
+#[derive(Debug)]
+pub struct VerifierUpdateData {
+	// account_id: A,
+	pub incentive_factor: f64,
+	pub increment: Increment,
+}
+
 /// Verifier agents struct
 #[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug, MaxEncodedLen)]
 #[scale_info(skip_type_params(T))]
