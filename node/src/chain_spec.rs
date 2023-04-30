@@ -1,16 +1,17 @@
-use felidae_node_runtime::{
+use felidae_runtime::{
 	constants::currency::*, opaque::SessionKeys, wasm_binary_unwrap, AccountId,
 	AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, Block, CouncilConfig, DemocracyConfig,
-	ElectionsConfig, GenesisConfig, GrandpaConfig, ImOnlineConfig, MaxNominations, SessionConfig,
-	Signature, StakerStatus, StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig,
+	ElectionsConfig, GenesisConfig, GrandpaConfig, ImOnlineConfig, IndicesConfig, MaxNominations,
+	NominationPoolsConfig, SessionConfig, Signature, StakerStatus, StakingConfig, SudoConfig,
+	SystemConfig, TechnicalCommitteeConfig,
 };
 
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sc_chain_spec::ChainSpecExtension;
 use sc_service::{ChainType, Properties};
-use serde_json::map::Map;
 use sc_telemetry::TelemetryEndpoints;
 use serde::{Deserialize, Serialize};
+use serde_json::map::Map;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public};
@@ -45,16 +46,16 @@ pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig, Extensions>;
 type AccountPublic = <Signature as Verify>::Signer;
 
 fn get_common_properties_map() -> Properties {
-    let mut properties = Map::new();
-    properties.insert("tokenSymbol".into(), "PAN".into());
-    properties.insert("tokenDecimals".into(), 12.into());
-    properties
+	let mut properties = Map::new();
+	properties.insert("tokenSymbol".into(), "PAN".into());
+	properties.insert("tokenDecimals".into(), 12.into());
+	properties
 }
 
 fn get_dev_properties() -> Properties {
-    let mut properties = get_common_properties_map();
-    properties.insert("ss58Format".into(), 42.into());
-    properties
+	let mut properties = get_common_properties_map();
+	properties.insert("ss58Format".into(), 42.into());
+	properties
 }
 
 // fn get_mainnet_properties() -> Properties {
@@ -277,6 +278,7 @@ pub fn testnet_genesis(
 		balances: BalancesConfig {
 			balances: endowed_accounts.iter().cloned().map(|x| (x, ENDOWMENT)).collect(),
 		},
+		indices: IndicesConfig { indices: vec![] },
 		session: SessionConfig {
 			keys: initial_authorities
 				.iter()
@@ -318,7 +320,7 @@ pub fn testnet_genesis(
 		sudo: SudoConfig { key: Some(root_key) },
 		babe: BabeConfig {
 			authorities: vec![],
-			epoch_config: Some(felidae_node_runtime::BABE_GENESIS_EPOCH_CONFIG),
+			epoch_config: Some(felidae_runtime::BABE_GENESIS_EPOCH_CONFIG),
 		},
 		im_online: ImOnlineConfig { keys: vec![] },
 		authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },
@@ -326,6 +328,11 @@ pub fn testnet_genesis(
 		technical_membership: Default::default(),
 		treasury: Default::default(),
 		transaction_payment: Default::default(),
+		nomination_pools: NominationPoolsConfig {
+			min_create_bond: 10 * DOLLARS,
+			min_join_bond: 1 * DOLLARS,
+			..Default::default()
+		},
 	}
 }
 
