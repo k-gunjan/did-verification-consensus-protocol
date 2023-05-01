@@ -4,12 +4,10 @@
 /// Learn more about FRAME and the core library of Substrate FRAME pallets:
 /// <https://docs.substrate.io/reference/frame-pallets/>
 pub use pallet::*;
-pub mod types;
-pub mod verification_process;
-// pub use log;
-use verifiers;
 #[cfg(test)]
 mod mock;
+pub mod types;
+pub mod verification_process;
 
 #[cfg(test)]
 mod tests;
@@ -39,6 +37,7 @@ pub mod pallet {
 	// use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
 	use sp_std::collections::btree_map::BTreeMap;
 
+	use pallet_did::pallet::DidProvider;
 	use verifiers::{
 		pallet::VerifiersProvider,
 		types::{Increment, VerifierUpdateData},
@@ -72,6 +71,9 @@ pub mod pallet {
 			AccountId = Self::AccountId,
 			UpdateData = VerifierUpdateData,
 		>;
+
+		/// pallet did API
+		type DidProvider: DidProvider<AccountId = Self::AccountId>;
 	}
 
 	// storage to hold the list of verifiers
@@ -188,6 +190,8 @@ pub mod pallet {
 		InvalidRevealedData,
 		// Verification record submitted by verifier ealier in the process not found
 		VerificationDataNotFound,
+		// Did already created for the account
+		AlreadyCreated4Account,
 	}
 
 	#[pallet::hooks]
@@ -216,6 +220,8 @@ pub mod pallet {
 			_list_of_documents: Vec<u8>,
 		) -> DispatchResult {
 			let _who = ensure_signed(origin)?;
+			// ensure that the did is not created already for the account
+			ensure!(!T::DidProvider::is_account_created(&_who), Error::<T>::AlreadyCreated4Account);
 			//ensure the registration request is not submitted already
 			ensure!(
 				!VerificationRequests::<T>::contains_key(&_who),
@@ -701,29 +707,43 @@ pub mod pallet {
 		fn eval(
 			list_verification_req: Vec<&T::AccountId>,
 		) -> Result<Vec<(T::AccountId, VerifierUpdateData)>, Error<T>> {
+			// (verifier_account_id , verifier_update_data)
 			let mut combined_result: Vec<(T::AccountId, VerifierUpdateData)> = Vec::new();
 			for consumer_id in list_verification_req {
-				match VerificationRequests::<T>::try_mutate(
-					consumer_id,
-					|v: &mut Option<VerificationRequest<T>>| -> Result<Vec<(T::AccountId, VerifierUpdateData)>, Error<T>> {
-						let mut vr = v.as_mut().ok_or(Error::<T>::NoDidReqFound)?;
+				// list of all the verification data submitted for a particular request
+				let revealed_data_list: Vec<VerificationProcessData<T>> =
+					VerificationProcessRecords::<T>::iter_prefix_values(consumer_id.clone())
+						.collect();
 
-						let revealed_data_list: Vec<VerificationProcessData<T>> =
-						// let revealed_data_list: Vec<RevealedParameters> =
-							VerificationProcessRecords::<T>::iter_prefix_values(
-								vr.consumer_account_id.clone(),
-							)
-							.map(|vpr| 	vpr)
-							.collect();
-						let (result, incentive_data) = VerificationProcessData::eval_incentive(revealed_data_list);
-						vr.state.eval_vp_result = Some(result);
-						vr.state.eval_vp_state = Some(EvalVpState::Done);
-						Ok(incentive_data)
+				let (result, incentive_data) =
+					VerificationProcessData::eval_incentive(revealed_data_list);
+
+				//TODO: more particular status of did creation
+				let did_creation_status = match result {
+					EvalVpResult::Accepted(_) => {
+						let r = T::DidProvider::creat_new_did(&consumer_id.clone());
+						if r.is_ok() {
+							DidCreationStatus::Created
+						} else {
+							DidCreationStatus::Failed
+						}
 					},
-				) {
-					Ok(d) => combined_result.extend(d),
-					Err(e) => return Err(e),
-				}
+					_ => DidCreationStatus::Rejected,
+				};
+				VerificationRequests::<T>::try_mutate(
+					consumer_id,
+					|v: &mut Option<VerificationRequest<T>>| -> Result<(), Error<T>> {
+						let mut vr = v.as_mut().ok_or(Error::<T>::NoDidReqFound)?;
+						vr.state.eval_vp_result = Some(result.clone());
+						vr.state.eval_vp_state = Some(EvalVpState::Done);
+						vr.did_creation_status = did_creation_status;
+						// update the stage. this is the last stage
+						vr.state.stage = VerificationStages::Done;
+						Ok(())
+					},
+				)?;
+
+				combined_result.extend(incentive_data);
 			}
 			Ok(combined_result)
 		}

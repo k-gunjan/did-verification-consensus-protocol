@@ -310,6 +310,10 @@ pub enum Incentive<Balance> {
 // }
 
 impl<T: Config> VerificationProcessData<T> {
+	// evaluation the winner submission by majority wins
+	// takes the list of the Self
+	// returns : result=> submission with clear majority, list of (verifier_account,
+	// update_data_of_verifier)
 	pub fn eval_incentive(
 		submissions: Vec<Self>,
 	) -> (EvalVpResult, Vec<(T::AccountId, VerifierUpdateData)>) {
@@ -338,6 +342,9 @@ impl<T: Config> VerificationProcessData<T> {
 }
 
 impl<T: Config> VerificationProcessDataItem<T> {
+	// evaluation the winner submission by majority wins
+	// takes the list of the Self
+	// returns : result=> submission with clear majority
 	fn eval_result(params: &[RevealedParameters]) -> EvalVpResult {
 		let mut counts = BTreeMap::new();
 		for p in params {
@@ -377,6 +384,10 @@ impl<T: Config> VerificationProcessDataItem<T> {
 		result
 	}
 
+	// evaluation the winner submission by majority wins
+	// takes the list of the Self where verification process has been completed by the verifier by
+	// revealing the data returns : result=> submission with clear majority, list of
+	// (verifier_account, update_data_of_verifier)
 	fn eval_incentive_on_completed(
 		submissions: Vec<Self>,
 	) -> (EvalVpResult, Vec<(T::AccountId, VerifierUpdateData)>) {
@@ -389,9 +400,9 @@ impl<T: Config> VerificationProcessDataItem<T> {
 			})
 			.collect();
 		let result: EvalVpResult = Self::eval_result(&entries[..]);
-		// let fastest = submissions.iter().min().ok_or(())?;
-		// let slowest = submissions.iter().min().ok_or(())?;
-		// let denominator = fastest.timetaken() - slowest.timetaken();
+		let fastest = submissions.iter().min().ok_or(())?;
+		let slowest = submissions.iter().min().ok_or(())?;
+		let denominator = fastest.timetaken() - slowest.timetaken();
 		let r = submissions
 			.iter()
 			.map(|x| {

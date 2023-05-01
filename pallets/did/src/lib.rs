@@ -25,6 +25,7 @@ pub mod pallet {
 		dispatch::DispatchResult,
 		// debug,
 		inherent::Vec,
+		log,
 		pallet_prelude::*,
 		sp_io::hashing::blake2_256,
 	};
@@ -140,11 +141,11 @@ pub mod pallet {
 		AttributeNotFound,
 	}
 
-	impl<T: Config> Did<T::AccountId, T::BlockNumber, <<T as Config>::Time as Time>::Moment>
-		for Pallet<T>
+	impl<T: Config>
+		Did<T::AccountId, T::BlockNumber, <<T as Config>::Time as Time>::Moment, Error<T>> for Pallet<T>
 	{
 		/// Validates if the AccountId 'actual_owner' owns the identity.
-		fn is_owner(identity: &T::AccountId, actual_owner: &T::AccountId) -> DispatchResult {
+		fn is_owner(identity: &T::AccountId, actual_owner: &T::AccountId) -> Result<(), Error<T>> {
 			let owner = Self::identity_owner(identity);
 			match owner == *actual_owner {
 				true => Ok(()),
@@ -227,7 +228,7 @@ pub mod pallet {
 			name: &[u8],
 			value: &[u8],
 			valid_for: Option<T::BlockNumber>,
-		) -> DispatchResult {
+		) -> Result<(), Error<T>> {
 			Self::is_owner(&identity, &who)?;
 
 			if Self::attribute_and_id(identity, name).is_some() {
@@ -421,6 +422,38 @@ pub mod pallet {
 			} else {
 				None
 			}
+		}
+	}
+
+	pub trait DidProvider {
+		type AccountId;
+
+		fn is_account_created(identity: &Self::AccountId) -> bool;
+		fn creat_new_did(identity: &Self::AccountId) -> Result<(), ()>;
+	}
+
+	impl<T: Config> DidProvider for Pallet<T> {
+		type AccountId = T::AccountId;
+
+		//checks if the identity is created already
+		fn is_account_created(identity: &Self::AccountId) -> bool {
+			let name: Vec<u8> = "VERIFIED".as_bytes().to_vec();
+			if Self::attribute_and_id(identity, &name).is_some() {
+				return true
+			}
+			false
+		}
+		fn creat_new_did(identity: &Self::AccountId) -> Result<(), ()> {
+			let name: Vec<u8> = "VERIFIED".as_bytes().to_vec();
+			let value: Vec<u8> = "YES".as_bytes().to_vec();
+			let valid_for: Option<T::BlockNumber> = None;
+
+			let result = Self::create_attribute(&identity, &identity, &name, &value, valid_for);
+			if let Err(e) = result {
+				log::info!("error in creating DID VERIFIED attribute:{e:?}");
+				return Err(())
+			}
+			Ok(())
 		}
 	}
 }

@@ -5003,6 +5003,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "log",
+ "pallet-did",
  "parity-scale-codec",
  "scale-info",
  "serde",

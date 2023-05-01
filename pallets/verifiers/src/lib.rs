@@ -31,9 +31,8 @@ pub mod pallet {
 		PalletId,
 	};
 	use frame_system::pallet_prelude::*;
-	// use pallet_verification_protocol::types::VerifierUpdateData;
 	use sp_runtime::{
-		traits::{CheckedAdd, Zero},
+		traits::{CheckedAdd, CheckedSub, Zero},
 		ArithmeticError,
 	};
 	use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
@@ -220,36 +219,6 @@ pub mod pallet {
 		pub(crate) fn account_id() -> T::AccountId {
 			T::PalletId::get().into_account_truncating()
 		}
-
-		pub(crate) fn update_profile(
-			who: T::AccountId,
-			update_data: UpdateData,
-		) -> Result<(), ArithmeticError> {
-			Verifiers::<T>::try_mutate(who, |v| -> Result<(), ArithmeticError> {
-				if let Some(ref mut verifier) = v {
-					if let Some(accepted_count) = update_data.incr_accepted_submissions {
-						verifier.count_of_accepted_submissions = verifier
-							.count_of_accepted_submissions
-							.checked_add(accepted_count)
-							.ok_or(ArithmeticError::Overflow)?;
-					}
-					if let Some(unaccepted_count) = update_data.incr_un_accepted_submissions {
-						verifier.count_of_un_accepted_submissions = verifier
-							.count_of_un_accepted_submissions
-							.checked_add(unaccepted_count)
-							.ok_or(ArithmeticError::Overflow)?;
-					}
-					if let Some(incompleted_count) = update_data.incr_incompleted_processes {
-						verifier.count_of_incompleted_processes = verifier
-							.count_of_incompleted_processes
-							.checked_add(incompleted_count)
-							.ok_or(ArithmeticError::Overflow)?;
-					}
-				}
-				Ok(())
-			})?;
-			Ok(())
-		}
 	}
 
 	pub trait VerifiersProvider {
@@ -285,18 +254,62 @@ pub mod pallet {
 									.count_of_accepted_submissions
 									.checked_add(n.into())
 									.ok_or(ArithmeticError::Overflow)?;
+								//TODO: get the incentive amount from config
+								let incentive_amount: BalanceOf<T> =
+									(100000000000u64 * n as u64).saturated_into();
+								verifier.balance = verifier
+									.balance
+									.checked_add(&incentive_amount)
+									.ok_or(ArithmeticError::Overflow)?;
+
+								let tx = T::Currency::transfer(
+									&Self::account_id(),
+									&verifier.account_id,
+									incentive_amount,
+									ExistenceRequirement::KeepAlive,
+								);
 							},
 							Increment::UnAccepted(n) => {
 								verifier.count_of_un_accepted_submissions = verifier
 									.count_of_un_accepted_submissions
 									.checked_add(n.into())
 									.ok_or(ArithmeticError::Overflow)?;
+								//TODO: get the incentive amount from config
+								let incentive_amount: BalanceOf<T> =
+									(100000000000u64 * n as u64).saturated_into();
+
+								verifier.balance = verifier
+									.balance
+									.checked_sub(&incentive_amount)
+									.ok_or(ArithmeticError::Overflow)?;
+
+								let tx = T::Currency::transfer(
+									&verifier.account_id,
+									&Self::account_id(),
+									incentive_amount,
+									ExistenceRequirement::KeepAlive,
+								);
 							},
 							Increment::NotCompleted(n) => {
 								verifier.count_of_incompleted_processes = verifier
 									.count_of_incompleted_processes
 									.checked_add(n.into())
 									.ok_or(ArithmeticError::Overflow)?;
+								//TODO: get the incentive amount from config
+								let incentive_amount: BalanceOf<T> =
+									(100000000000u64 * n as u64).saturated_into();
+
+								verifier.balance = verifier
+									.balance
+									.checked_sub(&incentive_amount)
+									.ok_or(ArithmeticError::Overflow)?;
+
+								let tx = T::Currency::transfer(
+									&verifier.account_id,
+									&Self::account_id(),
+									incentive_amount,
+									ExistenceRequirement::KeepAlive,
+								);
 							},
 						}
 					} else {

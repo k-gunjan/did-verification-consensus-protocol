@@ -1111,6 +1111,7 @@ impl pallet_verification_protocol::Config for Runtime {
 
 	type MaxLengthListOfDocuments = MaxLengthListOfDocuments;
 	type VerifiersProvider = Verifiers;
+	type DidProvider = DidModule;
 }
 
 parameter_types! {
