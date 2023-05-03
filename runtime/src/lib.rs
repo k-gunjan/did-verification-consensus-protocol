@@ -84,6 +84,9 @@ use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
 
+/// Import pallet verifiers
+pub use verifiers;
+
 #[cfg(any(feature = "std", test))]
 pub use frame_system::Call as SystemCall;
 #[cfg(any(feature = "std", test))]
@@ -1078,6 +1081,13 @@ impl frame_system::offchain::SigningTypes for Runtime {
 	type Signature = Signature;
 }
 
+// Configure the verifier pallets
+impl verifiers::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type PalletId = TreasuryPalletId;
+}
+
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 where
 	RuntimeCall: From<LocalCall>,
@@ -1255,6 +1265,7 @@ construct_runtime!(
 		AdoptionModule: pallet_adoption,
 		DidModule: pallet_did,
 		VerificationProtocol: pallet_verification_protocol,
+		Verifiers: verifiers,
 	}
 );
 
@@ -1349,6 +1360,7 @@ mod benches {
 		[pallet_adoption, AdoptionModule]
 		[pallet_did, DidModule]
 		[pallet_verification_protocol, VerificationProtocol]
+		[verifiers, Verifiers]
 	);
 }
 
