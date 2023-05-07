@@ -96,6 +96,8 @@ pub mod pallet {
 		VerifierRegistrationRequest(T::AccountId),
 		/// parameters. [verifier_account_id, amount]
 		VerifierDeposite(T::AccountId, BalanceOf<T>),
+		/// Update protocol parameters for stages
+		ParametersUpdated(ProtocolParameterValues),
 	}
 
 	// Errors inform users that something went wrong.
@@ -201,6 +203,20 @@ pub mod pallet {
 			// Return a successful DispatchResult
 			Ok(())
 		}
+
+		/// Change protocol parameters
+		/// takes new parameters and updates the default value
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1).ref_time())]
+		pub fn update_protocol_parameters(
+			origin: OriginFor<T>,
+			new_parameters: ProtocolParameterValues,
+		) -> DispatchResult {
+			let _who = ensure_signed(origin)?;
+			ProtocolParameters::<T>::put(&new_parameters);
+
+			Self::deposit_event(Event::ParametersUpdated(new_parameters));
+			Ok(())
+		}
 	}
 
 	impl<T: Config> Pallet<T> {
@@ -245,6 +261,7 @@ pub mod pallet {
 		fn update_verifier_profiles(
 			data: Vec<(Self::AccountId, Self::UpdateData)>,
 		) -> Result<(), ArithmeticError> {
+			let parameters = Self::protocol_parameters();
 			for (who, update_data) in data.iter() {
 				Verifiers::<T>::try_mutate(who, |v| -> Result<(), ArithmeticError> {
 					if let Some(ref mut verifier) = v {
@@ -254,9 +271,9 @@ pub mod pallet {
 									.count_of_accepted_submissions
 									.checked_add(n.into())
 									.ok_or(ArithmeticError::Overflow)?;
-								//TODO: get the incentive amount from config
+
 								let incentive_amount: BalanceOf<T> =
-									(100000000000u64 * n as u64).saturated_into();
+									(parameters.reward_amount * n as u128).saturated_into();
 								verifier.balance = verifier
 									.balance
 									.checked_add(&incentive_amount)
@@ -268,15 +285,22 @@ pub mod pallet {
 									incentive_amount,
 									ExistenceRequirement::KeepAlive,
 								);
+								// Activate if balance goes above limit and in InActive state
+								if verifier.balance >=
+									parameters.minimum_deposite_for_being_active.saturated_into() &&
+									verifier.state == VerifierState::InActive
+								{
+									verifier.state = VerifierState::Active;
+								}
 							},
 							Increment::UnAccepted(n) => {
 								verifier.count_of_un_accepted_submissions = verifier
 									.count_of_un_accepted_submissions
 									.checked_add(n.into())
 									.ok_or(ArithmeticError::Overflow)?;
-								//TODO: get the incentive amount from config
+
 								let incentive_amount: BalanceOf<T> =
-									(100000000000u64 * n as u64).saturated_into();
+									(parameters.penalty_amount * n as u128).saturated_into();
 
 								verifier.balance = verifier
 									.balance
@@ -289,6 +313,13 @@ pub mod pallet {
 									incentive_amount,
 									ExistenceRequirement::KeepAlive,
 								);
+
+								// InActivate if balance goes bellow limit
+								if verifier.balance <
+									parameters.minimum_deposite_for_being_active.saturated_into()
+								{
+									verifier.state = VerifierState::InActive;
+								}
 							},
 							Increment::NotCompleted(n) => {
 								verifier.count_of_incompleted_processes = verifier
@@ -297,7 +328,8 @@ pub mod pallet {
 									.ok_or(ArithmeticError::Overflow)?;
 								//TODO: get the incentive amount from config
 								let incentive_amount: BalanceOf<T> =
-									(100000000000u64 * n as u64).saturated_into();
+									(parameters.penalty_amount_not_completed * n as u128)
+										.saturated_into();
 
 								verifier.balance = verifier
 									.balance
@@ -310,6 +342,12 @@ pub mod pallet {
 									incentive_amount,
 									ExistenceRequirement::KeepAlive,
 								);
+								// InActivate if balance goes bellow limit
+								if verifier.balance <
+									parameters.minimum_deposite_for_being_active.saturated_into()
+								{
+									verifier.state = VerifierState::InActive;
+								}
 							},
 						}
 					} else {

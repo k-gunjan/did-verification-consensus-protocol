@@ -400,9 +400,9 @@ impl<T: Config> VerificationProcessDataItem<T> {
 			})
 			.collect();
 		let result: EvalVpResult = Self::eval_result(&entries[..]);
-		let fastest = submissions.iter().min().ok_or(())?;
-		let slowest = submissions.iter().min().ok_or(())?;
-		let denominator = fastest.timetaken() - slowest.timetaken();
+		// let fastest = submissions.iter().min().ok_or(())?;
+		// let slowest = submissions.iter().min().ok_or(())?;
+		// let denominator = fastest.timetaken() - slowest.timetaken();
 		let r = submissions
 			.iter()
 			.map(|x| {

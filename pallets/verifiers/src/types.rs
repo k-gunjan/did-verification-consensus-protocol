@@ -4,7 +4,10 @@ use scale_info::TypeInfo;
 
 use frame_support::inherent::Vec;
 use sp_core::MaxEncodedLen;
-use sp_runtime::{traits::Zero, ArithmeticError};
+use sp_runtime::{
+	traits::{CheckedAdd, CheckedDiv, CheckedSub, Zero},
+	ArithmeticError, FixedI64,
+};
 
 #[derive(Clone, Debug)]
 pub enum Increment {
@@ -54,14 +57,23 @@ impl<AccountId, BlockNumber, Balance> Verifier<AccountId, BlockNumber, Balance> 
 		matches!(self.state, VerifierState::Active)
 	}
 
-	pub fn accuracy_weight(&self) -> Result<f64, ArithmeticError> {
-		let result = (self.count_of_accepted_submissions - self.count_of_un_accepted_submissions) /
-			(self.count_of_accepted_submissions + self.count_of_un_accepted_submissions);
+	pub fn accuracy_weight(&self) -> Result<FixedI64, ArithmeticError> {
+		let count_of_accepted_submissions = FixedI64::from_u32(self.count_of_accepted_submissions);
+		let count_of_un_accepted_submissions =
+			FixedI64::from_u32(self.count_of_un_accepted_submissions);
+		let nominator = count_of_accepted_submissions
+			.checked_sub(&count_of_un_accepted_submissions)
+			.ok_or(ArithmeticError::Underflow)?;
+		let denominator = count_of_accepted_submissions
+			.checked_add(&count_of_un_accepted_submissions)
+			.ok_or(ArithmeticError::Overflow)?;
 
-		Ok(result.into())
+		let result = nominator.checked_div(&denominator).ok_or(ArithmeticError::Overflow)?;
+
+		Ok(result)
 	}
 
-	pub fn selection_score(self) -> f64 {
+	pub fn selection_score(self) -> i64 {
 		//update accuracy score
 		let accuracy = match self.accuracy_weight() {
 			Ok(f) => f,
@@ -70,7 +82,7 @@ impl<AccountId, BlockNumber, Balance> Verifier<AccountId, BlockNumber, Balance> 
 				Zero::zero()
 			},
 		};
-		accuracy
+		accuracy.into_inner()
 		//TODO implement other weights
 	}
 }
@@ -92,16 +104,22 @@ pub struct ProtocolParameterValues {
 	pub penalty_waiver_score: u32,
 	pub resumption_waiting_period: u32,
 	pub decimals: u8,
+	pub reward_amount: u128,
+	pub penalty_amount: u128,
+	pub penalty_amount_not_completed: u128,
 }
 
 impl Default for ProtocolParameterValues {
 	fn default() -> Self {
 		ProtocolParameterValues {
-			minimum_deposite_for_being_active: 1000_000_000_000,
+			minimum_deposite_for_being_active: 100_000_000_000_000,
 			threshold_accuracy_score: 850000000,
 			penalty_waiver_score: 950000000,
 			resumption_waiting_period: 100,
 			decimals: 9,
+			reward_amount: 1_000_000_000_000,
+			penalty_amount: 1_000_000_000_000,
+			penalty_amount_not_completed: 5_000_000_000_000,
 		}
 	}
 }
