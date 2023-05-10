@@ -5,8 +5,8 @@ use scale_info::TypeInfo;
 use frame_support::inherent::Vec;
 use sp_core::MaxEncodedLen;
 use sp_runtime::{
-	traits::{CheckedAdd, CheckedDiv, CheckedSub, Zero},
-	ArithmeticError, FixedI64,
+	traits::{Bounded, CheckedAdd, CheckedDiv, CheckedSub},
+	FixedI64,
 };
 
 #[derive(Clone, Debug)]
@@ -35,8 +35,8 @@ pub struct Verifier<AccountId, BlockNumber, Balance> {
 	pub count_of_un_accepted_submissions: u32,
 	pub count_of_incompleted_processes: u32,
 	// Thime time when accuracy score went bellow threshold
-	pub threshold_breach_time: Option<BlockNumber>,
-	pub reputation_score: u128,
+	pub threshold_breach_at: Option<BlockNumber>,
+	pub reputation_score: FixedI64,
 }
 
 // enum to hold the state of the verifiers
@@ -57,33 +57,31 @@ impl<AccountId, BlockNumber, Balance> Verifier<AccountId, BlockNumber, Balance> 
 		matches!(self.state, VerifierState::Active)
 	}
 
-	pub fn accuracy_weight(&self) -> Result<FixedI64, ArithmeticError> {
+	pub fn accuracy(&self) -> FixedI64 {
 		let count_of_accepted_submissions = FixedI64::from_u32(self.count_of_accepted_submissions);
 		let count_of_un_accepted_submissions =
 			FixedI64::from_u32(self.count_of_un_accepted_submissions);
 		let nominator = count_of_accepted_submissions
 			.checked_sub(&count_of_un_accepted_submissions)
-			.ok_or(ArithmeticError::Underflow)?;
+			.unwrap_or_else(|| FixedI64::min_value());
+
 		let denominator = count_of_accepted_submissions
 			.checked_add(&count_of_un_accepted_submissions)
-			.ok_or(ArithmeticError::Overflow)?;
+			.unwrap_or_else(|| FixedI64::min_value());
 
-		let result = nominator.checked_div(&denominator).ok_or(ArithmeticError::Overflow)?;
+		let result = nominator.checked_div(&denominator).unwrap_or_else(|| FixedI64::min_value());
 
-		Ok(result)
+		result
 	}
 
-	pub fn selection_score(self) -> i64 {
+	// Evaluate selection score of a verifier by taking into account the accuracy and reputation
+	// score
+	pub fn selection_score(self) -> FixedI64 {
 		//update accuracy score
-		let accuracy = match self.accuracy_weight() {
-			Ok(f) => f,
-			Err(e) => {
-				log::info!("error in accuracy:{e:?}");
-				Zero::zero()
-			},
-		};
-		accuracy.into_inner()
+		let accuracy = self.accuracy();
+		let selection_score = accuracy + self.reputation_score;
 		//TODO implement other weights
+		selection_score
 	}
 }
 
@@ -100,26 +98,29 @@ pub trait VerifierOperations<AccountId, BlockNumber, Balance> {
 #[scale_info(skip_type_params(T))]
 pub struct ProtocolParameterValues {
 	pub minimum_deposite_for_being_active: u128,
-	pub threshold_accuracy_score: u32,
-	pub penalty_waiver_score: u32,
+	pub threshold_accuracy_score: FixedI64,
+	pub penalty_waiver_score: FixedI64,
 	pub resumption_waiting_period: u32,
-	pub decimals: u8,
 	pub reward_amount: u128,
 	pub penalty_amount: u128,
 	pub penalty_amount_not_completed: u128,
+	pub accuracy_weight: FixedI64,
+	pub reputation_score_weight: FixedI64,
 }
 
 impl Default for ProtocolParameterValues {
 	fn default() -> Self {
 		ProtocolParameterValues {
 			minimum_deposite_for_being_active: 100_000_000_000_000,
-			threshold_accuracy_score: 850000000,
-			penalty_waiver_score: 950000000,
+			threshold_accuracy_score: FixedI64::from_inner(85),
+			penalty_waiver_score: FixedI64::from_inner(95),
+			// resemption period in number of blocks
 			resumption_waiting_period: 100,
-			decimals: 9,
 			reward_amount: 1_000_000_000_000,
 			penalty_amount: 1_000_000_000_000,
 			penalty_amount_not_completed: 5_000_000_000_000,
+			accuracy_weight: FixedI64::from_inner(1),
+			reputation_score_weight: FixedI64::from_inner(1),
 		}
 	}
 }

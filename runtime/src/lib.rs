@@ -1095,11 +1095,16 @@ impl verifiers::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type PalletId = TreasuryPalletId;
+	type MaxEligibleVerifiers = MaxEligibleVerifiers;
 }
 
-// //parameters of pallet verification protocol
+// //parameters of pallet verification protocol & verifiers
 parameter_types! {
 pub const MaxLengthListOfDocuments: u32 = 150;
+pub const MaxEligibleVerifiers: u32 = 1000;
+
+
+
 }
 
 // Configure the  pallet verification protocol

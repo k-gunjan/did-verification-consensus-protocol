@@ -1,4 +1,4 @@
-use crate::{types::AttributedId, Error};
+use crate::types::AttributedId;
 use frame_support::dispatch::DispatchResult;
 
 pub trait Did<AccountId, BlockNumber, Moment, Error> {
