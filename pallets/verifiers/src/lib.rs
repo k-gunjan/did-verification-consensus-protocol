@@ -22,7 +22,6 @@ mod benchmarking;
 pub mod pallet {
 
 	use crate::types::*;
-	use frame_support::sp_runtime::SaturatedConversion;
 	use frame_support::{
 		// inherent::Vec,
 		pallet_prelude::*,
@@ -30,13 +29,14 @@ pub mod pallet {
 		traits::{Currency, ExistenceRequirement},
 		PalletId,
 	};
+
+	use frame_support::{sp_runtime::SaturatedConversion, LOG_TARGET};
 	use frame_system::pallet_prelude::*;
-	// use pallet_verification_protocol::types::VerifierUpdateData;
 	use sp_runtime::{
-		traits::{CheckedAdd, Zero},
+		traits::{Bounded, CheckedAdd, CheckedSub, Zero},
 		ArithmeticError,
 	};
-	use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
+	use sp_std::vec::Vec;
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
@@ -60,15 +60,10 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type PalletId: Get<PalletId>;
-	}
 
-	// The pallet's runtime storage items.
-	// https://docs.substrate.io/main-docs/build/runtime-storage/
-	#[pallet::storage]
-	#[pallet::getter(fn something)]
-	// Learn more about declaring storage items:
-	// https://docs.substrate.io/main-docs/build/runtime-storage/#declaring-storage-items
-	pub type Something<T> = StorageValue<_, u32>;
+		#[pallet::constant]
+		type MaxEligibleVerifiers: Get<u32>;
+	}
 
 	// storage to hold the list of verifiers
 	#[pallet::storage]
@@ -80,6 +75,12 @@ pub mod pallet {
 		Verifier<T::AccountId, T::BlockNumber, BalanceOf<T>>,
 		OptionQuery,
 	>;
+
+	// storage to hold the list of active eligible verifiers who is ready to take task
+	#[pallet::storage]
+	#[pallet::getter(fn eligible_verifiers)]
+	pub type EligibleVerifiers<T: Config> =
+		StorageValue<_, BoundedVec<T::AccountId, T::MaxEligibleVerifiers>, ValueQuery>;
 
 	// Store the protocol parameters
 	#[pallet::storage]
@@ -97,6 +98,8 @@ pub mod pallet {
 		VerifierRegistrationRequest(T::AccountId),
 		/// parameters. [verifier_account_id, amount]
 		VerifierDeposite(T::AccountId, BalanceOf<T>),
+		/// Update protocol parameters for stages
+		ParametersUpdated(ProtocolParameterValues),
 	}
 
 	// Errors inform users that something went wrong.
@@ -113,6 +116,37 @@ pub mod pallet {
 		PalletAccountIdFailure,
 		/// Error in updating value
 		ArithmeticOverflow,
+	}
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		/// At block finalization
+		fn on_finalize(_now: BlockNumberFor<T>) {
+			let last_verifiers = Self::eligible_verifiers().to_vec();
+			let mut verifiers: Vec<Verifier<T::AccountId, T::BlockNumber, BalanceOf<T>>> =
+				Verifiers::<T>::iter_values()
+					.filter(|v| v.state == VerifierState::Active)
+					.map(|v| v)
+					.collect();
+			// sort by accuracy of the verifiers
+			verifiers.sort_by_key(|k| k.accuracy());
+			let new_verifiers: Vec<T::AccountId> =
+				verifiers.iter().map(|v| v.account_id.clone()).collect();
+
+			if last_verifiers != new_verifiers {
+				if new_verifiers.len() as u32 > T::MaxEligibleVerifiers::get() {
+					log::warn!(
+						target: LOG_TARGET,
+						"next verifiers list larger than {}, truncating",
+						T::MaxEligibleVerifiers::get(),
+					);
+				}
+				let bounded =
+					<BoundedVec<_, T::MaxEligibleVerifiers>>::truncate_from(new_verifiers);
+
+				EligibleVerifiers::<T>::put(bounded);
+			}
+		}
 	}
 
 	// Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -135,7 +169,7 @@ pub mod pallet {
 
 			let pallet_account: T::AccountId = Self::pallet_account_id()?;
 			T::Currency::transfer(&who, &pallet_account, deposit, ExistenceRequirement::KeepAlive)?;
-			let minimum_deposite_for_being_active: BalanceOf<T> = ProtocolParameters::<T>::get()
+			let minimum_deposite_for_being_active: BalanceOf<T> = Self::protocol_parameters()
 				.minimum_deposite_for_being_active
 				.saturated_into::<BalanceOf<T>>();
 
@@ -152,8 +186,8 @@ pub mod pallet {
 				count_of_accepted_submissions: 0u32,
 				count_of_un_accepted_submissions: 0u32,
 				count_of_incompleted_processes: 0u32,
-				threshold_breach_time: None.into(),
-				reputation_score: 0,
+				threshold_breach_at: None.into(),
+				reputation_score: sp_runtime::FixedI64::min_value(),
 			};
 
 			// Update Verifiers storage.
@@ -202,10 +236,24 @@ pub mod pallet {
 			// Return a successful DispatchResult
 			Ok(())
 		}
+
+		/// Change protocol parameters
+		/// takes new parameters and updates the default value
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1).ref_time())]
+		pub fn update_protocol_parameters(
+			origin: OriginFor<T>,
+			new_parameters: ProtocolParameterValues,
+		) -> DispatchResult {
+			let _who = ensure_signed(origin)?;
+			ProtocolParameters::<T>::put(&new_parameters);
+
+			Self::deposit_event(Event::ParametersUpdated(new_parameters));
+			Ok(())
+		}
 	}
 
 	impl<T: Config> Pallet<T> {
-		pub(crate) fn sub_account_id(id: T::AccountId) -> T::AccountId {
+		pub(crate) fn _sub_account_id(id: T::AccountId) -> T::AccountId {
 			T::PalletId::get().into_sub_account_truncating(id)
 		}
 
@@ -220,83 +268,166 @@ pub mod pallet {
 		pub(crate) fn account_id() -> T::AccountId {
 			T::PalletId::get().into_account_truncating()
 		}
-
-		pub(crate) fn update_profile(
-			who: T::AccountId,
-			update_data: UpdateData,
-		) -> Result<(), ArithmeticError> {
-			Verifiers::<T>::try_mutate(who, |v| -> Result<(), ArithmeticError> {
-				if let Some(ref mut verifier) = v {
-					if let Some(accepted_count) = update_data.incr_accepted_submissions {
-						verifier.count_of_accepted_submissions = verifier
-							.count_of_accepted_submissions
-							.checked_add(accepted_count)
-							.ok_or(ArithmeticError::Overflow)?;
-					}
-					if let Some(unaccepted_count) = update_data.incr_un_accepted_submissions {
-						verifier.count_of_un_accepted_submissions = verifier
-							.count_of_un_accepted_submissions
-							.checked_add(unaccepted_count)
-							.ok_or(ArithmeticError::Overflow)?;
-					}
-					if let Some(incompleted_count) = update_data.incr_incompleted_processes {
-						verifier.count_of_incompleted_processes = verifier
-							.count_of_incompleted_processes
-							.checked_add(incompleted_count)
-							.ok_or(ArithmeticError::Overflow)?;
-					}
-				}
-				Ok(())
-			})?;
-			Ok(())
-		}
 	}
 
 	pub trait VerifiersProvider {
 		type AccountId;
 		type UpdateData;
+		type BlockNumber;
 
 		fn get_verifiers() -> Vec<Self::AccountId>;
 		fn update_verifier_profiles(
 			data: Vec<(Self::AccountId, Self::UpdateData)>,
+			current_block: Self::BlockNumber,
 		) -> Result<(), ArithmeticError>;
 	}
 
 	impl<T: Config> VerifiersProvider for Pallet<T> {
 		type AccountId = T::AccountId;
 		type UpdateData = VerifierUpdateData;
+		type BlockNumber = T::BlockNumber;
 
 		fn get_verifiers() -> Vec<Self::AccountId> {
-			let verifiers: Vec<T::AccountId> = Verifiers::<T>::iter_values()
-				.filter(|v| v.state == VerifierState::Active)
-				.map(|v| v.account_id)
-				.collect();
-			verifiers
+			EligibleVerifiers::<T>::get().to_vec()
 		}
 		fn update_verifier_profiles(
 			data: Vec<(Self::AccountId, Self::UpdateData)>,
+			current_block: Self::BlockNumber,
 		) -> Result<(), ArithmeticError> {
+			let parameters = Self::protocol_parameters();
 			for (who, update_data) in data.iter() {
 				Verifiers::<T>::try_mutate(who, |v| -> Result<(), ArithmeticError> {
 					if let Some(ref mut verifier) = v {
+						let accuracy = verifier.accuracy();
 						match update_data.increment {
 							Increment::Accepted(n) => {
 								verifier.count_of_accepted_submissions = verifier
 									.count_of_accepted_submissions
 									.checked_add(n.into())
 									.ok_or(ArithmeticError::Overflow)?;
+
+								// reward only if the accuracy score is equal to or higher than the
+								// threshold
+								if parameters.threshold_accuracy_score <= accuracy {
+									let incentive_amount: BalanceOf<T> =
+										(parameters.reward_amount * n as u128).saturated_into();
+									verifier.balance = verifier
+										.balance
+										.checked_add(&incentive_amount)
+										.ok_or(ArithmeticError::Overflow)?;
+
+									let _ = T::Currency::transfer(
+										&Self::account_id(),
+										&verifier.account_id,
+										incentive_amount,
+										ExistenceRequirement::KeepAlive,
+									);
+									// Activate if balance goes above limit and in InActive state
+									if verifier.balance >=
+										parameters
+											.minimum_deposite_for_being_active
+											.saturated_into() && verifier.state ==
+										VerifierState::InActive
+									{
+										verifier.state = VerifierState::Active;
+									}
+								}
+								// check if accuracy goes above the threshold and resumption period
+								// is over
+								if verifier.accuracy() >= parameters.threshold_accuracy_score {
+									if let Some(crossed_down_at) = verifier.threshold_breach_at {
+										// check if resumption period is over
+										if current_block >
+											crossed_down_at +
+												parameters.resumption_waiting_period.into()
+										{
+											// record the breach time
+											verifier.threshold_breach_at = None;
+										}
+									}
+								}
 							},
 							Increment::UnAccepted(n) => {
 								verifier.count_of_un_accepted_submissions = verifier
 									.count_of_un_accepted_submissions
 									.checked_add(n.into())
 									.ok_or(ArithmeticError::Overflow)?;
+
+								// waive penalty if accuracy is higher than the waiver threshold
+								if parameters.penalty_waiver_score > accuracy {
+									let incentive_amount: BalanceOf<T> =
+										(parameters.penalty_amount * n as u128).saturated_into();
+
+									verifier.balance = verifier
+										.balance
+										.checked_sub(&incentive_amount)
+										.ok_or(ArithmeticError::Overflow)?;
+
+									let _ = T::Currency::transfer(
+										&verifier.account_id,
+										&Self::account_id(),
+										incentive_amount,
+										ExistenceRequirement::KeepAlive,
+									);
+
+									// InActivate if balance goes bellow limit
+									if verifier.balance <
+										parameters
+											.minimum_deposite_for_being_active
+											.saturated_into()
+									{
+										verifier.state = VerifierState::InActive;
+									}
+								}
+								// check if accuracy goes bellow the threshold
+								if verifier.accuracy() < parameters.threshold_accuracy_score &&
+									verifier.threshold_breach_at.is_none()
+								{
+									// let it remain active as per new thought
+									// record the breach time
+									verifier.threshold_breach_at = Some(current_block);
+								}
 							},
 							Increment::NotCompleted(n) => {
 								verifier.count_of_incompleted_processes = verifier
 									.count_of_incompleted_processes
 									.checked_add(n.into())
 									.ok_or(ArithmeticError::Overflow)?;
+
+								// waive penalty if accuracy is higher than the waiver threshold
+								if parameters.penalty_waiver_score > accuracy {
+									let incentive_amount: BalanceOf<T> =
+										(parameters.penalty_amount_not_completed * n as u128)
+											.saturated_into();
+
+									verifier.balance = verifier
+										.balance
+										.checked_sub(&incentive_amount)
+										.ok_or(ArithmeticError::Overflow)?;
+
+									let _ = T::Currency::transfer(
+										&verifier.account_id,
+										&Self::account_id(),
+										incentive_amount,
+										ExistenceRequirement::KeepAlive,
+									);
+									// InActivate if balance goes bellow limit
+									if verifier.balance <
+										parameters
+											.minimum_deposite_for_being_active
+											.saturated_into()
+									{
+										verifier.state = VerifierState::InActive;
+									}
+								}
+								// check if accuracy goes bellow the threshold
+								if verifier.accuracy() < parameters.threshold_accuracy_score &&
+									verifier.threshold_breach_at.is_none()
+								{
+									// let it remain active as per new thought
+									// record the breach time
+									verifier.threshold_breach_at = Some(current_block);
+								}
 							},
 						}
 					} else {
