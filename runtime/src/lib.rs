@@ -35,6 +35,10 @@ pub use pallet_adoption;
 
 ///import the did pallet.
 pub use pallet_did;
+///import the pallet verification protocol
+pub use pallet_verification_protocol;
+
+use pallet_did::types::Attribute;
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -1086,6 +1090,7 @@ impl verifiers::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type PalletId = TreasuryPalletId;
+	type MaxEligibleVerifiers = MaxEligibleVerifiers;
 }
 
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
@@ -1180,18 +1185,13 @@ impl pallet_adoption::Config for Runtime {
 impl pallet_did::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Time = Timestamp;
-	type WeightInfo = pallet_did::weights::SubstrateWeight<Runtime>;
+	// type WeightInfo = pallet_did::weights::SubstrateWeight<Runtime>;
 }
 
-//parameters of pallet verification protocol
+// //parameters of pallet verification protocol & verifiers
 parameter_types! {
-	pub const MaxLengthListOfDocuments: u32= 150;
-	pub const MinCountatVPRevealStage: u32= 2;
-	pub const MinCountatAllotStage: u32 = 2;
-	pub const MinCountatAckAcceptStage: u32 = 2;
-	pub const MinCountatSubmitVPStage: u32 = 2;
-	pub const MinCountatRevealStage: u32 = 2;
-	pub const MaxWaitingTimeAtStages: u32 = 1 * HOURS as u32 ;
+pub const MaxLengthListOfDocuments: u32 = 150;
+pub const MaxEligibleVerifiers: u32 = 1000;
 }
 
 // Configure the  pallet verification protocol
@@ -1202,18 +1202,8 @@ impl pallet_verification_protocol::Config for Runtime {
 	// type Balance = u128;
 
 	type MaxLengthListOfDocuments = MaxLengthListOfDocuments;
-	// Minimum number of verification parameters required at the reveal phase. say X
-	// type MinCountatVPRevealStage = MinCountatVPRevealStage;
-	// /// Count multiplier to above at the allotment stage. say 4 * X
-	// type MinCountatAllotStage = MinCountatAllotStage;
-	// /// Count multiplier to minimum at the Ack stage. say 3 * X
-	// type MinCountatAckAcceptStage = MinCountatAckAcceptStage;
-	// /// Count multiplier to minimum at the Submit Verification Para stage. say 2 * X
-	// type MinCountatSubmitVPStage = MinCountatSubmitVPStage;
-	// /// Count multiplier to minimum at the Reveal stage. say X equal to the minimum
-	// type MinCountatRevealStage = MinCountatRevealStage;
-	// /// Waiting period at each stage to receive CountXat<stage> submissions. say 1hr (3600/6 =
-	// 600 blocks) type MaxWaitingTimeAtStages = MaxWaitingTimeAtStages;
+	type VerifiersProvider = Verifiers;
+	type DidProvider = DidModule;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
@@ -1539,13 +1529,22 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_did_rpc_runtime_api::ReadAttributeApi<Block, AccountId, BlockNumber, Moment> for Runtime
+	impl pallet_did_rpc_runtime_api::ReadAttributeApi<
+	Block,
+	AccountId,
+	BlockNumber,
+	Moment,
+	> for Runtime
 	{
-		fn read(
+		fn read_attribute(
 			did: AccountId,
 			name: Vec<u8>,
 		) -> Option<Attribute<BlockNumber, Moment>> {
-			DidModule::read(&did, &name)
+			DidModule::read_attribute(&did, &name)
+		}
+
+		fn get_a_fixed_value(i:u32, j:u32) -> u32 {
+			DidModule::get_a_value(i,j)
 		}
 	}
 

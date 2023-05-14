@@ -1,17 +1,20 @@
-use crate::{DidModule, Encode, Runtime};
+use crate::{
+	sp_api_hidden_includes_construct_runtime::hidden_include::traits::Get, DidModule, Encode,
+	Runtime,
+};
 use frame_support::{
 	inherent::Vec,
 	log::{error, trace},
-	// weights::{constants::RocksDbWeight, Weight},
+	weights::{constants::RocksDbWeight, Weight},
 };
-// use frame_system::RawOrigin;
+use frame_system::RawOrigin;
 use pallet_contracts::chain_extension::{
 	ChainExtension, Environment, Ext, InitState, RetVal, SysConfig,
 };
 use pallet_did::did::Did;
-use sp_core::crypto::UncheckedFrom;
-use sp_runtime::{AccountId32, DispatchError};
 
+use sp_core::crypto::UncheckedFrom;
+use sp_runtime::{traits::StaticLookup, AccountId32, DispatchError};
 #[derive(Default)]
 pub struct DidChainExtension;
 
@@ -35,7 +38,7 @@ impl ChainExtension<Runtime> for DidChainExtension
 				trace!("contract called pallet. id {:?})", func_id);
 				let name: Vec<u8> = "VERIFIED".as_bytes().to_vec();
 				let did: AccountId32 = env.read_as()?;
-				let validity = match DidModule::read(&did, &name) {
+				let validity = match DidModule::read_attribute(&did, &name) {
 					Some(a) => a.validity,
 					_ => 0,
 				};

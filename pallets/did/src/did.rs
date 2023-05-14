@@ -1,33 +1,44 @@
-use crate::types::*;
+use crate::types::AttributedId;
+use frame_support::dispatch::DispatchResult;
 
-pub enum DidError {
-	NotFound,
-	AuthorizationFailed,
-	NameExceedMaxChar,
-	FailedCreate,
-	FailedUpdate,
-	AlreadyExist,
-	MaxBlockNumberExceeded,
-}
-
-pub trait Did<AccountId, BlockNumber, Moment> {
-	fn is_owner(owner: &AccountId, did_address: &AccountId) -> Result<(), DidError>;
-	fn create(
-		owner: &AccountId,
-		did_address: &AccountId,
+pub trait Did<AccountId, BlockNumber, Moment, Error> {
+	fn is_owner(identity: &AccountId, actual_owner: &AccountId) -> Result<(), Error>;
+	fn identity_owner(identity: &AccountId) -> AccountId;
+	fn valid_delegate(
+		identity: &AccountId,
+		delegate_type: &[u8],
+		delegate: &AccountId,
+	) -> DispatchResult;
+	fn valid_listed_delegate(
+		identity: &AccountId,
+		delegate_type: &[u8],
+		delegate: &AccountId,
+	) -> DispatchResult;
+	fn create_delegate(
+		who: &AccountId,
+		identity: &AccountId,
+		delegate: &AccountId,
+		delegate_type: &[u8],
+		valid_for: Option<BlockNumber>,
+	) -> DispatchResult;
+	// fn check_signature(signature: &Signature, msg: &[u8], signer: &AccountId) -> DispatchResult;
+	// fn valid_signer(
+	//     identity: &AccountId,
+	//     signature: &Signature,
+	//     msg: &[u8],
+	//     signer: &AccountId,
+	// ) -> DispatchResult;
+	fn create_attribute(
+		who: &AccountId,
+		identity: &AccountId,
 		name: &[u8],
 		value: &[u8],
 		valid_for: Option<BlockNumber>,
-	) -> Result<(), DidError>;
-	fn update(
-		owner: &AccountId,
-		did_address: &AccountId,
+	) -> Result<(), Error>;
+	fn reset_attribute(who: AccountId, identity: &AccountId, name: &[u8]) -> DispatchResult;
+	fn valid_attribute(identity: &AccountId, name: &[u8], value: &[u8]) -> DispatchResult;
+	fn attribute_and_id(
+		identity: &AccountId,
 		name: &[u8],
-		value: &[u8],
-		valid_for: Option<BlockNumber>,
-	) -> Result<(), DidError>;
-	fn read(did_address: &AccountId, name: &[u8]) -> Option<Attribute<BlockNumber, Moment>>;
-	fn delete(owner: &AccountId, did_address: &AccountId, name: &[u8]) -> Result<(), DidError>;
-	fn get_hashed_key_for_attr(did_account: &AccountId, name: &[u8]) -> [u8; 32];
-	fn validate_block_number(valid_for: Option<BlockNumber>) -> Result<BlockNumber, DidError>;
+	) -> Option<AttributedId<BlockNumber, Moment>>;
 }
