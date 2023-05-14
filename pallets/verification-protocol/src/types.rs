@@ -1,11 +1,14 @@
 use codec::{Decode, Encode};
 
 use crate::Config;
+pub use verifiers::types::{Increment, VerifierUpdateData};
 
-use frame_support::{inherent::Vec, pallet_prelude::ConstU32, BoundedVec};
+use frame_support::{pallet_prelude::ConstU32, BoundedVec};
 
+use core::cmp::{Eq, Ordering, PartialEq};
 use scale_info::TypeInfo;
 use sp_core::H256;
+use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
 
 /// Struct of the did verification request submitted by the consumer
 #[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug)]
@@ -183,7 +186,7 @@ pub enum RevealedParameters {
 }
 
 /// Struct to hold the process data of verifier for every verification request
-#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug)]
+#[derive(Clone, Encode, Decode, Eq, PartialEq, TypeInfo, Debug)]
 #[scale_info(skip_type_params(T))]
 pub struct VerificationProcessData<T: Config> {
 	pub verifier_account_id: T::AccountId,
@@ -193,10 +196,9 @@ pub struct VerificationProcessData<T: Config> {
 	pub acknowledged: Option<(T::BlockNumber, u8)>,
 	pub data: Option<(T::BlockNumber, H256)>,
 	pub revealed_data: Option<(T::BlockNumber, RevealedParameters)>,
-	pub is_valid: Option<bool>,
 }
 
-/// allot to a task to a particular verifier
+/// allot a task to a particular verifier
 impl<T: Config> VerificationProcessData<T> {
 	pub fn allot_to_verifier(verifier: T::AccountId, current_block: T::BlockNumber) -> Self {
 		VerificationProcessData {
@@ -205,8 +207,207 @@ impl<T: Config> VerificationProcessData<T> {
 			acknowledged: None.into(),
 			data: None.into(),
 			revealed_data: None.into(),
-			is_valid: None.into(),
 		}
+	}
+
+	// checks if verifier completed the process and returns
+	pub fn with_completed(self) -> Option<VerificationProcessDataItem<T>> {
+		if let VerificationProcessData {
+			verifier_account_id,
+			allotted_at: Some(allotted_at),
+			acknowledged: Some(acknowledged),
+			data: Some(data),
+			revealed_data: Some(revealed_data),
+		} = self
+		{
+			Some(VerificationProcessDataItem {
+				verifier_account_id,
+				allotted_at,
+				acknowledged,
+				data,
+				revealed_data,
+			})
+		} else {
+			None
+		}
+	}
+}
+
+#[derive(Eq, PartialEq, Clone)]
+pub struct VerificationProcessDataItem<T: Config> {
+	pub verifier_account_id: T::AccountId,
+	pub allotted_at: T::BlockNumber,
+	/// ack with(blocknumber, confidence_score)
+	pub acknowledged: (T::BlockNumber, u8),
+	pub data: (T::BlockNumber, H256),
+	pub revealed_data: (T::BlockNumber, RevealedParameters),
+}
+
+impl<T: Config> VerificationProcessDataItem<T> {
+	// duration between ack and submitting the verification data
+	pub fn timetaken(&self) -> T::BlockNumber {
+		let VerificationProcessDataItem { acknowledged, data, .. } = self;
+		acknowledged.0 - data.0
+	}
+	pub fn is_submission_is_result(&self, s: &EvalVpResult) -> bool {
+		let VerificationProcessDataItem { revealed_data: (_, revealed_parameters), .. } = self;
+		match s {
+			EvalVpResult::Rejected =>
+				if *revealed_parameters == RevealedParameters::Reject {
+					true
+				} else {
+					false
+				},
+			EvalVpResult::Accepted(c) =>
+				if *revealed_parameters == RevealedParameters::Accept(c.clone()) {
+					true
+				} else {
+					false
+				},
+			_ => false, // matches to no one
+		}
+	}
+}
+
+impl<T: Config> PartialOrd for VerificationProcessDataItem<T> {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		Some(self.cmp(&other))
+	}
+}
+
+impl<T: Config> Ord for VerificationProcessDataItem<T> {
+	fn cmp(&self, other: &Self) -> Ordering {
+		let VerificationProcessDataItem { acknowledged: (ack_at, _), data: (submit_at, _), .. } =
+			self;
+
+		let VerificationProcessDataItem {
+			acknowledged: (ack_at_other, _),
+			data: (submit_at_other, _),
+			..
+		} = other;
+		(*submit_at - *ack_at).cmp(&(*submit_at_other - *ack_at_other))
+	}
+}
+
+#[derive(Clone)]
+pub enum Incentive<Balance> {
+	Reward(Balance),
+	Penalty(Balance),
+}
+
+// #[derive(Clone, Debug)]
+// pub enum Increment {
+// 	Accepted(u8),
+// 	UnAccepted(u8),
+// 	NotCompleted(u8),
+// }
+
+// #[derive(Debug)]
+// pub struct VerifierUpdateData {
+// 	// account_id: A,
+// 	incentive_factor: f64,
+// 	increment: Increment,
+// }
+
+impl<T: Config> VerificationProcessData<T> {
+	pub fn eval_incentive(
+		submissions: Vec<Self>,
+	) -> (EvalVpResult, Vec<(T::AccountId, VerifierUpdateData)>) {
+		let mut data: Vec<(T::AccountId, VerifierUpdateData)> = Vec::new();
+		let mut completed_subs: Vec<VerificationProcessDataItem<T>> = Vec::new();
+		submissions.into_iter().for_each(|vpr| {
+			let verifier = vpr.verifier_account_id.clone();
+			if let Some(rd) = vpr.with_completed() {
+				completed_subs.push(rd)
+			} else {
+				data.push((
+					verifier,
+					VerifierUpdateData {
+						increment: Increment::NotCompleted(1),
+						incentive_factor: 0.0,
+					},
+				))
+			}
+		});
+
+		let (result, partial_incentive_data) =
+			VerificationProcessDataItem::eval_incentive_on_completed(completed_subs);
+		data.extend(partial_incentive_data);
+		(result, data)
+	}
+}
+
+impl<T: Config> VerificationProcessDataItem<T> {
+	fn eval_result(params: &[RevealedParameters]) -> EvalVpResult {
+		let mut counts = BTreeMap::new();
+		for p in params {
+			let count = counts.entry(p).or_insert(0);
+			*count += 1;
+		}
+		// counts
+		let mut max_count = 0;
+		let mut max_variant = None;
+		let mut max_count_2 = 0;
+		let mut max_variant_2 = None;
+		for (discr, count) in &counts {
+			if *count > max_count {
+				max_count = *count;
+				max_variant = Some(discr);
+			} else if *count > max_count_2 {
+				max_count_2 = *count;
+				max_variant_2 = Some(discr);
+			}
+		}
+
+		if max_variant.is_some() {
+			if max_variant_2.is_some() {
+				if max_count == max_count_2 {
+					// there is a tie and no clear majority
+					max_variant = None;
+				}
+			}
+		}
+		let result: EvalVpResult = match max_variant {
+			Some(variant) => match variant {
+				RevealedParameters::Reject => EvalVpResult::Rejected,
+				RevealedParameters::Accept(d) => EvalVpResult::Accepted(d.clone()),
+			},
+			None => EvalVpResult::CantDecideAkaFailed,
+		};
+		result
+	}
+
+	fn eval_incentive_on_completed(
+		submissions: Vec<Self>,
+	) -> (EvalVpResult, Vec<(T::AccountId, VerifierUpdateData)>) {
+		// let mut data: BTreeMap<K, V> = BTreeMap::new();
+		let entries: Vec<RevealedParameters> = submissions
+			.iter()
+			.map(|vpr| {
+				let (_, rd) = vpr.revealed_data.clone();
+				rd
+			})
+			.collect();
+		let result: EvalVpResult = Self::eval_result(&entries[..]);
+		// let fastest = submissions.iter().min().ok_or(())?;
+		// let slowest = submissions.iter().min().ok_or(())?;
+		// let denominator = fastest.timetaken() - slowest.timetaken();
+		let r = submissions
+			.iter()
+			.map(|x| {
+				let increment = if x.is_submission_is_result(&result) {
+					Increment::Accepted(1)
+				} else {
+					Increment::UnAccepted(1)
+				};
+				(
+					x.verifier_account_id.clone(),
+					VerifierUpdateData { increment, incentive_factor: 1.0 },
+				)
+			})
+			.collect::<Vec<_>>();
+
+		(result, r)
 	}
 }
 
@@ -217,9 +418,9 @@ pub struct ConsumerDetails {
 	pub country: BoundedVec<u8, ConstU32<50>>,
 	pub id_issuing_authority: BoundedVec<u8, ConstU32<200>>,
 	pub type_of_id: BoundedVec<u8, ConstU32<200>>,
-	pub hash1_name_dob_father: Option<H256>,
-	pub hash2_name_dob_mother: Option<H256>,
-	pub hash3_name_dob_guardian: Option<H256>,
+	pub hash1_name_dob_father: H256,
+	pub hash2_name_dob_mother: H256,
+	pub hash3_name_dob_guardian: H256,
 }
 
 /// Struct of verification protocol parameters

@@ -1,6 +1,5 @@
-use crate::Config;
+use crate::{types::VerifierUpdateData, Config, Error};
 use frame_support::{dispatch::DispatchResult, inherent::Vec};
-// use crate::types::*;
 // use frame_support::pallet_prelude::ConstU32;
 // use frame_support::traits::ConstU8;
 // use frame_support::BoundedVec;
@@ -17,7 +16,6 @@ pub trait VerificationProcess<C: Config> {
 	/// in round-robin for now
 	/// and allow ack & vp-submit
 	fn allot_verification_task(
-		current_block: C::BlockNumber,
 		verifiers: Vec<C::AccountId>,
 		verification_reuests: Vec<(&C::AccountId, u16)>,
 	) -> DispatchResult;
@@ -65,28 +63,18 @@ pub trait VerificationProcess<C: Config> {
 	/// Check if wait time for ack is over. re-allot to
 	/// more verifiers if wait is over and not completely fulfilled
 	/// This takes list of verification request ids to act on
-	fn act_on_wait_over_for_ack(
-		current_block: C::BlockNumber,
-		verification_req_id: Vec<&C::AccountId>,
-	) -> DispatchResult;
+	fn act_on_wait_over_for_ack(verification_req_id: Vec<&C::AccountId>) -> DispatchResult;
 
 	/// Check if wait time for submit_vp is over. re-allot to
 	/// more verifiers if wait is over and not completely fulfilled
 	/// This takes list of verification request ids to act on
-	fn act_on_wait_over_for_submit_vp(
-		current_block: C::BlockNumber,
-		list_verification_req: Vec<&C::AccountId>,
-	) -> DispatchResult;
+	fn act_on_wait_over_for_submit_vp(list_verification_req: Vec<&C::AccountId>) -> DispatchResult;
 
 	/// Start the reveal stage
-	fn start_reveal(
-		current_block: C::BlockNumber,
-		list_verification_req: Vec<&C::AccountId>,
-	) -> DispatchResult;
+	fn start_reveal(list_verification_req: Vec<&C::AccountId>) -> DispatchResult;
 
 	/// eval the submissions to get the result: accept/reject/can't decide
 	fn eval(
-		current_block: C::BlockNumber,
 		list_verification_req: Vec<&C::AccountId>,
-	) -> DispatchResult;
+	) -> Result<Vec<(C::AccountId, VerifierUpdateData)>, Error<C>>;
 }
