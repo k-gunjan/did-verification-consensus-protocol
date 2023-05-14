@@ -70,12 +70,6 @@ pub mod pallet {
 		type DidProvider: DidProvider<AccountId = Self::AccountId>;
 	}
 
-	// storage to hold the list of verifiers
-	#[pallet::storage]
-	#[pallet::getter(fn verifiers)]
-	pub type Verifiers<T: Config> =
-		StorageMap<_, Blake2_128Concat, T::AccountId, Verifier<T::AccountId>, OptionQuery>;
-
 	// Store the protocol parameters
 	#[pallet::storage]
 	#[pallet::getter(fn protocol_parameters)]
@@ -83,21 +77,15 @@ pub mod pallet {
 
 	/// Stores the did creation records
 	#[pallet::storage]
-	#[pallet::getter(fn did_data)]
-	pub(super) type DidData<T: Config> =
-		StorageMap<_, Blake2_128Concat, T::AccountId, T::BlockNumber>;
+	#[pallet::getter(fn consumer_hashes)]
+	pub(super) type ConsumerHashes<T: Config> =
+		StorageMap<_, Blake2_128Concat, H256, (T::AccountId, T::BlockNumber), OptionQuery>;
 
 	/// Stores the verification requests
 	#[pallet::storage]
 	#[pallet::getter(fn verification_requests)]
 	pub(super) type VerificationRequests<T: Config> =
 		StorageMap<_, Blake2_128Concat, T::AccountId, VerificationRequest<T>>;
-
-	// List of verifiers who have done ack. stored by consumer_account_id
-	#[pallet::storage]
-	#[pallet::getter(fn task_acks)]
-	pub(super) type TaskAcks<T: Config> =
-		StorageMap<_, Blake2_128Concat, T::AccountId, Vec<T::AccountId>>;
 
 	// Verificatoin parameters submitted by verifiers
 	// (consumer_account_id, verifier_account_id) -> submitted_parameters
@@ -117,17 +105,10 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// Event documentation should end with an array that provides descriptive names for event
-		/// parameters. [something, who]
-		SomethingStored(u32, T::AccountId),
 		/// On DID verification request accpted
 		/// parameters. [consumer_accountId]
 		DidCreationRequestCreated(T::AccountId),
-		/// On Ack by verifier
-		/// parameters. [ verifier_accountId, consumer_accountId]
-		AcceptTask(T::AccountId, T::AccountId),
-		/// test event on allot
-		AllotmentDone(),
+
 		/// New verifier registration request created
 		VerifierRegistrationRequest(T::AccountId),
 		VerificatoinTaskAllotted {
@@ -146,6 +127,9 @@ pub mod pallet {
 		/// Verification data revealed by the verifier
 		/// parameters. [ verifier_accountId, consumer_accountId]
 		Revealed(T::AccountId, T::AccountId),
+		/// Verification completed event
+		/// parameters. [ consumer_accountId, DidCreationStatus]
+		DidCreationResult(T::AccountId, DidCreationStatus),
 	}
 
 	// Errors inform users that something went wrong.
@@ -186,6 +170,8 @@ pub mod pallet {
 		VerificationDataNotFound,
 		// Did already created for the account
 		AlreadyCreated4Account,
+		//Consumer hash already registered for some DID
+		HashAlreadyRegistered,
 	}
 
 	#[pallet::hooks]
@@ -328,7 +314,6 @@ pub mod pallet {
 				consumer_account_id: _who.clone(),
 				submitted_at: current_block,
 				list_of_documents: bounded_list_of_doc,
-				list_of_id_hashes: BoundedVec::try_from(vec![]).unwrap(),
 				did_creation_status: DidCreationStatus::default(),
 				state: StateConfig {
 					allot: StateAttributes {
@@ -351,10 +336,10 @@ pub mod pallet {
 		}
 
 		fn allot_verification_task(
+			current_block: T::BlockNumber,
 			verifiers: Vec<T::AccountId>,
 			verification_requests: Vec<(&T::AccountId, u16)>,
 		) -> DispatchResult {
-			let current_block: T::BlockNumber = <frame_system::Pallet<T>>::block_number();
 			log::info!(
 				"----total requests pending for allotment:{:?}",
 				verification_requests.len()
@@ -528,7 +513,6 @@ pub mod pallet {
 				act_on_fulfilled!(submit_vp, vr, 1, current_block);
 				Ok(())
 			})?;
-			Self::deposit_event(Event::<T>::VpSubmitted(_who.clone(), consumer_account_id.clone()));
 			Ok(())
 		}
 
@@ -622,8 +606,10 @@ pub mod pallet {
 			return Err(Error::<T>::NotAllowed.into())
 		}
 
-		fn act_on_wait_over_for_ack(list_verification_req: Vec<&T::AccountId>) -> DispatchResult {
-			let current_block: T::BlockNumber = <frame_system::Pallet<T>>::block_number();
+		fn act_on_wait_over_for_ack(
+			current_block: T::BlockNumber,
+			list_verification_req: Vec<&T::AccountId>,
+		) -> DispatchResult {
 			for consumer_id in list_verification_req {
 				VerificationRequests::<T>::try_mutate(consumer_id, |v| -> DispatchResult {
 					let mut vr = v.as_mut().ok_or(Error::<T>::NoDidReqFound)?;
@@ -643,9 +629,9 @@ pub mod pallet {
 		}
 
 		fn act_on_wait_over_for_submit_vp(
+			current_block: T::BlockNumber,
 			list_verification_req: Vec<&T::AccountId>,
 		) -> DispatchResult {
-			let current_block: T::BlockNumber = <frame_system::Pallet<T>>::block_number();
 			for consumer_id in list_verification_req {
 				VerificationRequests::<T>::try_mutate(consumer_id, |v| -> DispatchResult {
 					let mut vr = v.as_mut().ok_or(Error::<T>::NoDidReqFound)?;
@@ -677,8 +663,10 @@ pub mod pallet {
 			Ok(())
 		}
 
-		fn start_reveal(list_verification_req: Vec<&T::AccountId>) -> DispatchResult {
-			let current_block: T::BlockNumber = <frame_system::Pallet<T>>::block_number();
+		fn start_reveal(
+			current_block: T::BlockNumber,
+			list_verification_req: Vec<&T::AccountId>,
+		) -> DispatchResult {
 			let parameters = Self::protocol_parameters();
 			for consumer_id in list_verification_req {
 				VerificationRequests::<T>::try_mutate(consumer_id, |v| -> DispatchResult {
@@ -699,6 +687,7 @@ pub mod pallet {
 		}
 
 		fn eval(
+			current_block: T::BlockNumber,
 			list_verification_req: Vec<&T::AccountId>,
 		) -> Result<Vec<(T::AccountId, VerifierUpdateData)>, Error<T>> {
 			// (verifier_account_id , verifier_update_data)
@@ -713,17 +702,35 @@ pub mod pallet {
 					VerificationProcessData::eval_incentive(revealed_data_list);
 
 				//TODO: more particular status of did creation
-				let did_creation_status = match result {
-					EvalVpResult::Accepted(_) => {
-						let r = T::DidProvider::creat_new_did(&consumer_id.clone());
-						if r.is_ok() {
-							DidCreationStatus::Created
+				let did_creation_status = match result.clone() {
+					EvalVpResult::Accepted(consumer_details) => {
+						//check hashes and reject if hashes are already there
+						if let Err(e) = Self::check_insert_hashes(
+							consumer_details.hashes(),
+							consumer_id.clone(),
+							current_block,
+						) {
+							log::info!(
+								"Did creation of {:?} rejected . Error: {:?}",
+								consumer_id.clone(),
+								e
+							);
+							DidCreationStatus::RejectedDuplicate
 						} else {
-							DidCreationStatus::Failed
+							let r = T::DidProvider::creat_new_did(&consumer_id.clone());
+							if r.is_ok() {
+								DidCreationStatus::Created
+							} else {
+								DidCreationStatus::Failed
+							}
 						}
 					},
 					_ => DidCreationStatus::Rejected,
 				};
+				Self::deposit_event(Event::DidCreationResult(
+					consumer_id.clone(),
+					did_creation_status,
+				));
 				VerificationRequests::<T>::try_mutate(
 					consumer_id,
 					|v: &mut Option<VerificationRequest<T>>| -> Result<(), Error<T>> {
@@ -776,7 +783,7 @@ pub mod pallet {
 			// // check new task pending for allotment
 
 			if pending_eval.len() > 0 {
-				let result = Self::eval(pending_eval);
+				let result = Self::eval(current_block, pending_eval);
 				match result {
 					Ok(s) =>
 						if let Err(_) =
@@ -786,19 +793,17 @@ pub mod pallet {
 						},
 					Err(_) => log::info!("Error in evaluating incentive data feed"),
 				}
-				//TODO: act on result in verifiers pallet
 			}
 
 			if pending_allotments.len() > 0 && active_verifiers.len() > 0 {
-				Self::allot_verification_task(active_verifiers, pending_allotments)?;
-				Self::deposit_event(Event::AllotmentDone());
+				Self::allot_verification_task(current_block, active_verifiers, pending_allotments)?;
 			};
 
 			// END--check new task pending for allotment
 			//---start reveal check ---
 			if submit_vp_completed.len() > 0 {
 				// log::info!("%%%--%%% found start reveal cases:{:?}", submit_vp_completed.len());
-				Self::start_reveal(submit_vp_completed)?;
+				Self::start_reveal(current_block, submit_vp_completed)?;
 			};
 			// end --start reveal check --
 
@@ -831,10 +836,10 @@ pub mod pallet {
 				}
 			}
 			if list_wait_over_ack.len() > 0 {
-				Self::act_on_wait_over_for_ack(list_wait_over_ack)?;
+				Self::act_on_wait_over_for_ack(current_block, list_wait_over_ack)?;
 			}
 			if list_wait_over_submit_vp.len() > 0 {
-				Self::act_on_wait_over_for_submit_vp(list_wait_over_submit_vp)?;
+				Self::act_on_wait_over_for_submit_vp(current_block, list_wait_over_submit_vp)?;
 			}
 
 			Ok(())
@@ -882,6 +887,28 @@ pub mod pallet {
 						log::error!("X0X0X0X0-----InvalidRevealedData length");
 						return Err(Error::<T>::InvalidRevealedData.into())
 					}
+					let mut at_least_one = false;
+					let mut hash1_name_dob_father: Option<H256> = None;
+					let mut hash2_name_dob_mother: Option<H256> = None;
+					let mut hash3_name_dob_guardian: Option<H256> = None;
+					// discard the empty submitted fields
+					if split_vec[3] != keccak_256(b"") {
+						hash1_name_dob_father = Some(H256::from_slice(split_vec[3]));
+						at_least_one = true;
+					}
+					if split_vec[4] != keccak_256(b"") {
+						hash2_name_dob_mother = Some(H256::from_slice(split_vec[4]));
+						at_least_one = true;
+					}
+					if split_vec[5] != keccak_256(b"") {
+						hash3_name_dob_guardian = Some(H256::from_slice(split_vec[5]));
+						at_least_one = true;
+					}
+
+					if at_least_one == false {
+						// all should not be blank(invalid char)
+						return Err(Error::<T>::InvalidRevealedData.into())
+					}
 					// update as accept with the parameters
 					let consumer_details = ConsumerDetails {
 						country: split_vec[0]
@@ -896,14 +923,32 @@ pub mod pallet {
 							.to_vec()
 							.try_into()
 							.map_err(|_| Error::<T>::InvalidRevealedData)?,
-						hash1_name_dob_father: H256::from_slice(split_vec[3]),
-						hash2_name_dob_mother: H256::from_slice(split_vec[4]),
-						hash3_name_dob_guardian: H256::from_slice(split_vec[5]),
+						hash1_name_dob_father,
+						hash2_name_dob_mother,
+						hash3_name_dob_guardian,
 					};
 					return Ok(RevealedParameters::Accept(consumer_details))
 				},
 				_ => return Err(Error::<T>::InvalidRevealedData.into()),
 			}
+		}
+		pub(crate) fn check_insert_hashes(
+			hashes: Vec<H256>,
+			consumer_id: T::AccountId,
+			current_block: T::BlockNumber,
+		) -> Result<(), Error<T>> {
+			// check if hashes have be claimed already there
+			for hash in hashes.iter() {
+				ensure!(
+					!ConsumerHashes::<T>::contains_key(&hash),
+					Error::<T>::HashAlreadyRegistered
+				);
+			}
+			//insert the hash into record
+			for hash in hashes.iter() {
+				ConsumerHashes::<T>::insert(&hash, (consumer_id.clone(), current_block));
+			}
+			Ok(())
 		}
 	}
 }

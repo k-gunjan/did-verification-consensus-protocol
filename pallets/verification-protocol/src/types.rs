@@ -16,8 +16,7 @@ use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
 pub struct VerificationRequest<T: Config> {
 	pub consumer_account_id: T::AccountId,
 	pub submitted_at: T::BlockNumber,
-	pub list_of_documents: BoundedVec<u8, T::MaxLengthListOfDocuments>, //TODO; implement checks
-	pub list_of_id_hashes: BoundedVec<u8, T::MaxLengthListOfDocuments>,
+	pub list_of_documents: BoundedVec<u8, T::MaxLengthListOfDocuments>,
 	pub did_creation_status: DidCreationStatus,
 	pub state: StateConfig<T::BlockNumber>,
 }
@@ -71,7 +70,7 @@ macro_rules! start_stage {
 pub use start_stage;
 
 /// Enumurates the possible Did Creation Statuses
-#[derive(Eq, PartialEq, PartialOrd, TypeInfo, Ord, Clone, Encode, Decode, Default, Debug)]
+#[derive(Eq, PartialEq, PartialOrd, TypeInfo, Ord, Clone, Encode, Decode, Default, Debug, Copy)]
 pub enum DidCreationStatus {
 	/// Pending on submission
 	#[default]
@@ -429,9 +428,25 @@ pub struct ConsumerDetails {
 	pub country: BoundedVec<u8, ConstU32<50>>,
 	pub id_issuing_authority: BoundedVec<u8, ConstU32<200>>,
 	pub type_of_id: BoundedVec<u8, ConstU32<200>>,
-	pub hash1_name_dob_father: H256,
-	pub hash2_name_dob_mother: H256,
-	pub hash3_name_dob_guardian: H256,
+	pub hash1_name_dob_father: Option<H256>,
+	pub hash2_name_dob_mother: Option<H256>,
+	pub hash3_name_dob_guardian: Option<H256>,
+}
+
+impl ConsumerDetails {
+	pub fn hashes(&self) -> Vec<H256> {
+		let mut result = Vec::new();
+		if let Some(hash) = self.hash1_name_dob_father {
+			result.push(hash);
+		}
+		if let Some(hash) = self.hash2_name_dob_mother {
+			result.push(hash);
+		}
+		if let Some(hash) = self.hash3_name_dob_guardian {
+			result.push(hash);
+		}
+		result
+	}
 }
 
 /// Struct of verification protocol parameters
