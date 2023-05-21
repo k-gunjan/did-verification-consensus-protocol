@@ -308,7 +308,11 @@ pub mod pallet {
 
 								// reward only if the accuracy score is equal to or higher than the
 								// threshold
-								if parameters.threshold_accuracy_score <= accuracy {
+								// and
+								// the verifier is not serving in the resemption period
+								if parameters.threshold_accuracy_score <= accuracy &&
+									verifier.threshold_breach_at.is_none()
+								{
 									let incentive_amount: BalanceOf<T> =
 										(parameters.reward_amount * n as u128).saturated_into();
 									verifier.balance = verifier
@@ -363,12 +367,12 @@ pub mod pallet {
 										.checked_sub(&incentive_amount)
 										.ok_or(ArithmeticError::Overflow)?;
 
-									let _ = T::Currency::transfer(
-										&verifier.account_id,
-										&Self::account_id(),
-										incentive_amount,
-										ExistenceRequirement::KeepAlive,
-									);
+									// let _ = T::Currency::transfer(
+									// 	&verifier.account_id,
+									// 	&Self::account_id(),
+									// 	incentive_amount,
+									// 	ExistenceRequirement::KeepAlive,
+									// );
 
 									// InActivate if balance goes bellow limit
 									if verifier.balance <
@@ -405,12 +409,12 @@ pub mod pallet {
 										.checked_sub(&incentive_amount)
 										.ok_or(ArithmeticError::Overflow)?;
 
-									let _ = T::Currency::transfer(
-										&verifier.account_id,
-										&Self::account_id(),
-										incentive_amount,
-										ExistenceRequirement::KeepAlive,
-									);
+									// let _ = T::Currency::transfer(
+									// 	&verifier.account_id,
+									// 	&Self::account_id(),
+									// 	incentive_amount,
+									// 	ExistenceRequirement::KeepAlive,
+									// );
 									// InActivate if balance goes bellow limit
 									if verifier.balance <
 										parameters

@@ -5,7 +5,7 @@ use scale_info::TypeInfo;
 use frame_support::inherent::Vec;
 use sp_core::MaxEncodedLen;
 use sp_runtime::{
-	traits::{Bounded, CheckedAdd, CheckedDiv, CheckedSub},
+	traits::{Bounded, CheckedAdd, CheckedDiv, CheckedMul},
 	FixedI64,
 };
 
@@ -58,18 +58,26 @@ impl<AccountId, BlockNumber, Balance> Verifier<AccountId, BlockNumber, Balance> 
 	}
 
 	pub fn accuracy(&self) -> FixedI64 {
+		// return 100% for the initial case where all the counts are zero.
+		if self.count_of_accepted_submissions + self.count_of_un_accepted_submissions == 0 {
+			return FixedI64::from_u32(100)
+		}
 		let count_of_accepted_submissions = FixedI64::from_u32(self.count_of_accepted_submissions);
 		let count_of_un_accepted_submissions =
 			FixedI64::from_u32(self.count_of_un_accepted_submissions);
-		let nominator = count_of_accepted_submissions
-			.checked_sub(&count_of_un_accepted_submissions)
-			.unwrap_or_else(|| FixedI64::min_value());
+		// let nominator = count_of_accepted_submissions
+		// 	.checked_sub(&count_of_un_accepted_submissions)
+		// 	.unwrap_or_else(|| FixedI64::min_value());
 
 		let denominator = count_of_accepted_submissions
 			.checked_add(&count_of_un_accepted_submissions)
 			.unwrap_or_else(|| FixedI64::min_value());
-
-		let result = nominator.checked_div(&denominator).unwrap_or_else(|| FixedI64::min_value());
+		// result = x/(x+y) * 100
+		let result = count_of_accepted_submissions
+			.checked_div(&denominator)
+			.unwrap_or_else(|| FixedI64::min_value())
+			.checked_mul(&100i64.into())
+			.unwrap_or_else(|| FixedI64::min_value());
 
 		result
 	}
@@ -116,9 +124,9 @@ impl Default for ProtocolParameterValues {
 			penalty_waiver_score: FixedI64::from_inner(95),
 			// resemption period in number of blocks
 			resumption_waiting_period: 100,
-			reward_amount: 1_000_000_000_000,
-			penalty_amount: 1_000_000_000_000,
-			penalty_amount_not_completed: 5_000_000_000_000,
+			reward_amount: 10_000_000_000_000,
+			penalty_amount: 10_000_000_000_000,
+			penalty_amount_not_completed: 15_000_000_000_000,
 			accuracy_weight: FixedI64::from_inner(1),
 			reputation_score_weight: FixedI64::from_inner(1),
 		}

@@ -1,20 +1,15 @@
-use crate::{
-	sp_api_hidden_includes_construct_runtime::hidden_include::traits::Get, DidModule, Encode,
-	Runtime,
-};
+use crate::{DidModule, Encode, Runtime};
 use frame_support::{
 	inherent::Vec,
 	log::{error, trace},
-	weights::{constants::RocksDbWeight, Weight},
+	// weights::Weight,
 };
-use frame_system::RawOrigin;
 use pallet_contracts::chain_extension::{
 	ChainExtension, Environment, Ext, InitState, RetVal, SysConfig,
 };
-use pallet_did::did::Did;
 
 use sp_core::crypto::UncheckedFrom;
-use sp_runtime::{traits::StaticLookup, AccountId32, DispatchError};
+use sp_runtime::{AccountId32, DispatchError};
 #[derive(Default)]
 pub struct DidChainExtension;
 

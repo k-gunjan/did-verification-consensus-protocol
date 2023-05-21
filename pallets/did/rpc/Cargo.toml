@@ -1,7 +1,7 @@
 [package]
 name = "pallet-did-rpc"
 version = "4.0.0-dev"
-authors = ["K Gunjan <gunjan.cn@gmail.com>"]
+authors = ["<felidae-team>"]
 edition = "2021"
 license = "Apache-2.0"
 homepage = "https://substrate.io"

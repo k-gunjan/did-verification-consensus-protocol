@@ -299,12 +299,12 @@ pub mod pallet {
 			let current_block = <frame_system::Pallet<T>>::block_number();
 			// fetch the protocol parameters
 			let parameters = Self::protocol_parameters();
-			log::info!(
-				"lisf of doc text:{:?}, length:{:?}, max-length-allowed:{:?}",
-				_list_of_documents,
-				_list_of_documents.len(),
-				parameters.max_length_list_of_documents,
-			);
+			// log::info!(
+			// 	"lisf of doc text:{:?}, length:{:?}, max-length-allowed:{:?}",
+			// 	_list_of_documents,
+			// 	_list_of_documents.len(),
+			// 	parameters.max_length_list_of_documents,
+			// );
 			// //ensure the length of the list of the doc is proper
 			let bounded_list_of_doc: BoundedVec<u8, T::MaxLengthListOfDocuments> =
 				_list_of_documents.try_into().map_err(|_| Error::<T>::ListOfDocsTooLong)?;
@@ -349,11 +349,11 @@ pub mod pallet {
 				verification_requests.clone().iter().map(|(_, c)| *c as u32).sum();
 			let mut looped_verifiers: Vec<_> =
 				verifiers.iter().cycle().take(total_v_required as usize).collect();
-			log::info!(
-				"total verifiers required:{:?}, total v in looped list:{:?}",
-				total_v_required,
-				looped_verifiers.len()
-			);
+			// log::info!(
+			// 	"total verifiers required:{:?}, total v in looped list:{:?}",
+			// 	total_v_required,
+			// 	looped_verifiers.len()
+			// );
 
 			// fetch protocol parameters
 			let parameters = Self::protocol_parameters();
@@ -365,12 +365,12 @@ pub mod pallet {
 					let mut allotted_to_count = 0;
 
 					for i in 0..count {
-						log::info!("**********alltting:{:?} , out of total: {:?}", i, count);
-						log::info!(
-							"*-*-*-*-*-*-allotting for task:{:?}, to v number:{:?}",
-							&consumer_id,
-							count
-						);
+						// log::info!("**********alltting:{:?} , out of total: {:?}", i, count);
+						// log::info!(
+						// 	"*-*-*-*-*-*-allotting for task:{:?}, to v number:{:?}",
+						// 	&consumer_id,
+						// 	count
+						// );
 						let a_v = looped_verifiers.pop();
 						match a_v {
 							Some(v) => {
@@ -637,7 +637,6 @@ pub mod pallet {
 					let mut vr = v.as_mut().ok_or(Error::<T>::NoDidReqFound)?;
 					let num_of_new_verifiers_required_allot =
 						vr.state.submit_vp.pending_count_of_verifiers * 3;
-					// vr.start_allot(num_of_new_verifiers_required_allot, 0, current_block);
 					start_stage!(allot, vr, num_of_new_verifiers_required_allot, 0, current_block);
 
 					let state_duration_incr_ack =

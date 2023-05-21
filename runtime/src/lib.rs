@@ -23,9 +23,9 @@
 #![recursion_limit = "512"]
 
 mod chain_extension;
-use crate::pallet_did::types::*;
+// use crate::pallet_did::types::*;
 use chain_extension::DidChainExtension;
-use pallet_did::did::Did;
+// use pallet_did::did::Did;
 
 /// Import the template pallet.
 pub use pallet_template;
