@@ -21,12 +21,23 @@
 pub mod currency {
 	pub type Balance = u128;
 
-	pub const MILLICENTS: Balance = 1_000_000_000;
-	pub const CENTS: Balance = 1_000 * MILLICENTS; // assume this is worth about a cent.
-	pub const DOLLARS: Balance = 100 * CENTS;
+	/// Constant values used within the runtime.
+	pub const MICROPAN: Balance = 1_000_000;
+	pub const MILLIPAN: Balance = 1_000 * MICROPAN;
+	pub const CENTS: Balance = 10 * MILLIPAN; // assume this is worth about a cent.				
+	pub const PAN: Balance = 100 * CENTS;
 
+	pub const INIT_SUPPLY_FACTOR: Balance = 100;
+	pub const STORAGE_BYTE_FEE: Balance = 4 * MICROPAN * INIT_SUPPLY_FACTOR;
+
+	/// Charge fee for stored bytes and items.
 	pub const fn deposit(items: u32, bytes: u32) -> Balance {
-		items as Balance * 15 * CENTS + (bytes as Balance) * 6 * CENTS
+		items as Balance * 15 * CENTS + (bytes as Balance) * STORAGE_BYTE_FEE
+	}
+
+	/// Charge fee for stored bytes and items as part of `pallet-contracts`.
+	pub const fn contracts_deposit(items: u32, bytes: u32) -> Balance {
+		items as Balance * MILLIPAN * INIT_SUPPLY_FACTOR + (bytes as Balance) * STORAGE_BYTE_FEE
 	}
 }
 
