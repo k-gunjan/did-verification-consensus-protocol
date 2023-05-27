@@ -169,11 +169,11 @@ pub mod pallet {
 
 			let pallet_account: T::AccountId = Self::pallet_account_id()?;
 			T::Currency::transfer(&who, &pallet_account, deposit, ExistenceRequirement::KeepAlive)?;
-			let minimum_deposite_for_being_active: BalanceOf<T> = Self::protocol_parameters()
-				.minimum_deposite_for_being_active
+			let minimum_deposit_for_being_active: BalanceOf<T> = Self::protocol_parameters()
+				.minimum_deposit_for_being_active
 				.saturated_into::<BalanceOf<T>>();
 
-			let state = if deposit >= minimum_deposite_for_being_active {
+			let state = if deposit >= minimum_deposit_for_being_active {
 				VerifierState::Active
 			} else {
 				VerifierState::Pending
@@ -200,15 +200,15 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1).ref_time())]
-		pub fn verifier_deposite(origin: OriginFor<T>, deposit: BalanceOf<T>) -> DispatchResult {
+		pub fn verifier_deposit(origin: OriginFor<T>, deposit: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			// check if the verifier is already registered
 			ensure!(<Verifiers<T>>::contains_key(who.clone()), Error::<T>::VerifierNotRegistered);
 			// Check that the deposited value is greater than zero.
 			ensure!(deposit > Zero::zero(), Error::<T>::InvalidDepositeAmount);
 
-			let minimum_deposite_for_being_active = ProtocolParameters::<T>::get()
-				.minimum_deposite_for_being_active
+			let minimum_deposit_for_being_active = ProtocolParameters::<T>::get()
+				.minimum_deposit_for_being_active
 				.saturated_into::<BalanceOf<T>>();
 
 			// update balance and change state if required
@@ -224,7 +224,7 @@ pub mod pallet {
 
 					verifier.balance =
 						verifier.balance.checked_add(&deposit).ok_or(ArithmeticError::Overflow)?;
-					if verifier.balance >= minimum_deposite_for_being_active {
+					if verifier.balance >= minimum_deposit_for_being_active {
 						verifier.state = VerifierState::Active;
 					}
 				}
@@ -329,7 +329,7 @@ pub mod pallet {
 									// Activate if balance goes above limit and in InActive state
 									if verifier.balance >=
 										parameters
-											.minimum_deposite_for_being_active
+											.minimum_deposit_for_being_active
 											.saturated_into() && verifier.state ==
 										VerifierState::InActive
 									{
@@ -377,7 +377,7 @@ pub mod pallet {
 									// InActivate if balance goes bellow limit
 									if verifier.balance <
 										parameters
-											.minimum_deposite_for_being_active
+											.minimum_deposit_for_being_active
 											.saturated_into()
 									{
 										verifier.state = VerifierState::InActive;
@@ -418,7 +418,7 @@ pub mod pallet {
 									// InActivate if balance goes bellow limit
 									if verifier.balance <
 										parameters
-											.minimum_deposite_for_being_active
+											.minimum_deposit_for_being_active
 											.saturated_into()
 									{
 										verifier.state = VerifierState::InActive;

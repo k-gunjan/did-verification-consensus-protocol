@@ -107,7 +107,7 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		/// On DID verification request accpted
 		/// parameters. [consumer_accountId]
-		DidCreationRequestCreated(T::AccountId),
+		DidCreationRequest(T::AccountId),
 
 		/// New verifier registration request created
 		VerifierRegistrationRequest(T::AccountId),
@@ -211,7 +211,7 @@ pub mod pallet {
 			Self::create_verification_request(&_who, _list_of_documents)?;
 
 			// Emit an event.
-			Self::deposit_event(Event::DidCreationRequestCreated(_who));
+			Self::deposit_event(Event::DidCreationRequest(_who));
 
 			Ok(())
 		}
@@ -364,7 +364,7 @@ pub mod pallet {
 
 					let mut allotted_to_count = 0;
 
-					for i in 0..count {
+					for _i in 0..count {
 						// log::info!("**********alltting:{:?} , out of total: {:?}", i, count);
 						// log::info!(
 						// 	"*-*-*-*-*-*-allotting for task:{:?}, to v number:{:?}",
@@ -375,10 +375,10 @@ pub mod pallet {
 						match a_v {
 							Some(v) => {
 								if <VerificationProcessRecords<T>>::contains_key(consumer_id, v) {
-									log::warn!(
-										"##warning## attempting to allot again. state: count:{:?}",
-										i
-									);
+									// log::warn!(
+									// 	"##warning## attempting to allot again. state: count:{:?}",
+									// 	i
+									// );
 									// put the  removed verifier back in the list
 									looped_verifiers.push(v);
 									break

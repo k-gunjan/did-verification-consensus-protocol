@@ -105,7 +105,7 @@ pub trait VerifierOperations<AccountId, BlockNumber, Balance> {
 #[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug, MaxEncodedLen)]
 #[scale_info(skip_type_params(T))]
 pub struct ProtocolParameterValues {
-	pub minimum_deposite_for_being_active: u128,
+	pub minimum_deposit_for_being_active: u128,
 	pub threshold_accuracy_score: FixedI64,
 	pub penalty_waiver_score: FixedI64,
 	pub resumption_waiting_period: u32,
@@ -119,7 +119,7 @@ pub struct ProtocolParameterValues {
 impl Default for ProtocolParameterValues {
 	fn default() -> Self {
 		ProtocolParameterValues {
-			minimum_deposite_for_being_active: 100_000_000_000_000,
+			minimum_deposit_for_being_active: 100_000_000_000_000,
 			threshold_accuracy_score: FixedI64::from_inner(85),
 			penalty_waiver_score: FixedI64::from_inner(95),
 			// resemption period in number of blocks
