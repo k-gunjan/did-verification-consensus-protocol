@@ -270,7 +270,7 @@ pub fn testnet_genesis(
 
 	let num_endowed_accounts = endowed_accounts.len();
 
-	const ENDOWMENT: Balance = 10_000 * DOLLARS;
+	const ENDOWMENT: Balance = 10_000 * PAN;
 	const STASH: Balance = ENDOWMENT / 1000;
 
 	GenesisConfig {
@@ -329,8 +329,8 @@ pub fn testnet_genesis(
 		treasury: Default::default(),
 		transaction_payment: Default::default(),
 		nomination_pools: NominationPoolsConfig {
-			min_create_bond: 10 * DOLLARS,
-			min_join_bond: 1 * DOLLARS,
+			min_create_bond: 10 * PAN,
+			min_join_bond: 1 * PAN,
 			..Default::default()
 		},
 	}
