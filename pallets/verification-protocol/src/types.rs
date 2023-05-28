@@ -469,7 +469,7 @@ impl Default for ProtocolParameterValues {
 			min_count_at_ack_accept_stage: 4,
 			min_count_at_submit_vp_stage: 4,
 			min_count_at_reveal_stage: 4,
-			max_waiting_time_at_stages: 50,
+			max_waiting_time_at_stages: 1200,
 		}
 	}
 }
