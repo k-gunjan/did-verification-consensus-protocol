@@ -285,7 +285,7 @@ pub mod pallet {
 				clear_parameters,
 				secret,
 			)?;
-			Self::deposit_event(Event::VpSubmitted(_who, consumer_account_id));
+			Self::deposit_event(Event::Revealed(_who, consumer_account_id));
 			Ok(())
 		}
 	}
@@ -578,8 +578,6 @@ pub mod pallet {
 				act_on_fulfilled!(reveal, vr, 1, current_block);
 				Ok(())
 			})?;
-
-			Self::deposit_event(Event::<T>::Revealed(_who.clone(), consumer_account_id.clone()));
 			Ok(())
 		}
 
