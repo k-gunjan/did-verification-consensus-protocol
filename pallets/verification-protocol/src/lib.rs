@@ -109,8 +109,6 @@ pub mod pallet {
 		/// parameters. [consumer_accountId]
 		DidCreationRequest(T::AccountId),
 
-		/// New verifier registration request created
-		VerifierRegistrationRequest(T::AccountId),
 		VerificatoinTaskAllotted {
 			consumer: T::AccountId,
 			verifier: T::AccountId,
