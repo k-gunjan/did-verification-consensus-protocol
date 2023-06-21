@@ -8,6 +8,7 @@ use frame_support::{pallet_prelude::ConstU32, BoundedVec};
 use core::cmp::{Eq, Ordering, PartialEq};
 use scale_info::TypeInfo;
 use sp_core::H256;
+use sp_runtime::FixedU128;
 use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
 
 /// Struct of the did verification request submitted by the consumer
@@ -248,6 +249,7 @@ impl<T: Config> VerificationProcessDataItem<T> {
 		let VerificationProcessDataItem { acknowledged, data, .. } = self;
 		acknowledged.0 - data.0
 	}
+	// returns true if the final result is same as its submission
 	pub fn is_submission_is_result(&self, s: &EvalVpResult) -> bool {
 		let VerificationProcessDataItem { revealed_data: (_, revealed_parameters), .. } = self;
 		match s {
@@ -266,6 +268,11 @@ impl<T: Config> VerificationProcessDataItem<T> {
 			_ => false, // matches to no one
 		}
 	}
+	// Returns the confidence score set at the time of acknowledgement
+	pub fn confidence_score(&self) -> u8 {
+		let Self { acknowledged: (_, score), .. } = self;
+		*score
+	}
 }
 
 impl<T: Config> PartialOrd for VerificationProcessDataItem<T> {
@@ -276,14 +283,9 @@ impl<T: Config> PartialOrd for VerificationProcessDataItem<T> {
 
 impl<T: Config> Ord for VerificationProcessDataItem<T> {
 	fn cmp(&self, other: &Self) -> Ordering {
-		let VerificationProcessDataItem { acknowledged: (ack_at, _), data: (submit_at, _), .. } =
-			self;
+		let Self { acknowledged: (ack_at, _), data: (submit_at, _), .. } = self;
 
-		let VerificationProcessDataItem {
-			acknowledged: (ack_at_other, _),
-			data: (submit_at_other, _),
-			..
-		} = other;
+		let Self { acknowledged: (ack_at_other, _), data: (submit_at_other, _), .. } = other;
 		(*submit_at - *ack_at).cmp(&(*submit_at_other - *ack_at_other))
 	}
 }
@@ -304,7 +306,7 @@ pub enum Incentive<Balance> {
 // #[derive(Debug)]
 // pub struct VerifierUpdateData {
 // 	// account_id: A,
-// 	incentive_factor: f64,
+// 	incentive_factor: FixedU128,
 // 	increment: Increment,
 // }
 
@@ -327,7 +329,7 @@ impl<T: Config> VerificationProcessData<T> {
 					verifier,
 					VerifierUpdateData {
 						increment: Increment::NotCompleted(1),
-						incentive_factor: 0.0,
+						incentive_factor: FixedU128::from_inner(1u128),
 					},
 				))
 			}
@@ -412,7 +414,13 @@ impl<T: Config> VerificationProcessDataItem<T> {
 				};
 				(
 					x.verifier_account_id.clone(),
-					VerifierUpdateData { increment, incentive_factor: 1.0 },
+					VerifierUpdateData {
+						increment,
+						incentive_factor: FixedU128::from_rational(
+							x.confidence_score() as u128,
+							100u128,
+						),
+					},
 				)
 			})
 			.collect::<Vec<_>>();

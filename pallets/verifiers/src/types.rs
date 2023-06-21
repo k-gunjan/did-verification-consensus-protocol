@@ -6,7 +6,7 @@ use frame_support::inherent::Vec;
 use sp_core::MaxEncodedLen;
 use sp_runtime::{
 	traits::{Bounded, CheckedAdd, CheckedDiv, CheckedMul},
-	FixedI64,
+	FixedI64, FixedU128,
 };
 
 #[derive(Clone, Debug)]
@@ -19,7 +19,7 @@ pub enum Increment {
 #[derive(Debug)]
 pub struct VerifierUpdateData {
 	// account_id: A,
-	pub incentive_factor: f64,
+	pub incentive_factor: FixedU128,
 	pub increment: Increment,
 }
 
@@ -71,7 +71,7 @@ impl<AccountId, BlockNumber, Balance> Verifier<AccountId, BlockNumber, Balance> 
 
 		let denominator = count_of_accepted_submissions
 			.checked_add(&count_of_un_accepted_submissions)
-			.unwrap_or_else(|| FixedI64::min_value());
+			.unwrap_or_else(|| FixedI64::max_value());
 		// result = x/(x+y) * 100
 		let result = count_of_accepted_submissions
 			.checked_div(&denominator)

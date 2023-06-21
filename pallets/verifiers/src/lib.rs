@@ -33,8 +33,8 @@ pub mod pallet {
 	use frame_support::{sp_runtime::SaturatedConversion, LOG_TARGET};
 	use frame_system::pallet_prelude::*;
 	use sp_runtime::{
-		traits::{Bounded, CheckedAdd, CheckedSub, Zero},
-		ArithmeticError,
+		traits::{Bounded, CheckedAdd, CheckedMul, CheckedSub, Zero},
+		ArithmeticError, FixedU128,
 	};
 	use sp_std::vec::Vec;
 	#[pallet::pallet]
@@ -313,8 +313,17 @@ pub mod pallet {
 								if parameters.threshold_accuracy_score <= accuracy &&
 									verifier.threshold_breach_at.is_none()
 								{
+									// reward*factor + reward
+									let amount = FixedU128::from_inner(parameters.reward_amount)
+										.checked_mul(&update_data.incentive_factor)
+										.ok_or(ArithmeticError::Overflow)?
+										.checked_add(&FixedU128::from_inner(
+											parameters.reward_amount,
+										))
+										.ok_or(ArithmeticError::Overflow)?;
+
 									let incentive_amount: BalanceOf<T> =
-										(parameters.reward_amount * n as u128).saturated_into();
+										amount.into_inner().saturated_into();
 									verifier.balance = verifier
 										.balance
 										.checked_add(&incentive_amount)
@@ -359,8 +368,17 @@ pub mod pallet {
 
 								// waive penalty if accuracy is higher than the waiver threshold
 								if parameters.penalty_waiver_score > accuracy {
+									let penalty_amount =
+										FixedU128::from_inner(parameters.penalty_amount)
+											.checked_sub(
+												&FixedU128::from_inner(parameters.penalty_amount)
+													.checked_mul(&update_data.incentive_factor)
+													.ok_or(ArithmeticError::Overflow)?,
+											)
+											.ok_or(ArithmeticError::Overflow)?;
+
 									let incentive_amount: BalanceOf<T> =
-										(parameters.penalty_amount * n as u128).saturated_into();
+										penalty_amount.into_inner().saturated_into();
 
 									verifier.balance = verifier
 										.balance
@@ -400,9 +418,20 @@ pub mod pallet {
 
 								// waive penalty if accuracy is higher than the waiver threshold
 								if parameters.penalty_waiver_score > accuracy {
+									let penalty_amount = FixedU128::from_inner(
+										parameters.penalty_amount_not_completed,
+									)
+									.checked_sub(
+										&FixedU128::from_inner(
+											parameters.penalty_amount_not_completed,
+										)
+										.checked_mul(&update_data.incentive_factor)
+										.ok_or(ArithmeticError::Overflow)?,
+									)
+									.ok_or(ArithmeticError::Overflow)?;
+
 									let incentive_amount: BalanceOf<T> =
-										(parameters.penalty_amount_not_completed * n as u128)
-											.saturated_into();
+										penalty_amount.into_inner().saturated_into();
 
 									verifier.balance = verifier
 										.balance
