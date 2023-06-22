@@ -685,6 +685,8 @@ pub mod pallet {
 			current_block: T::BlockNumber,
 			list_verification_req: Vec<&T::AccountId>,
 		) -> Result<Vec<(T::AccountId, VerifierUpdateData)>, Error<T>> {
+			// fetch protocol parameters
+			let parameters = Self::protocol_parameters();
 			// (verifier_account_id , verifier_update_data)
 			let mut combined_result: Vec<(T::AccountId, VerifierUpdateData)> = Vec::new();
 			for consumer_id in list_verification_req {
@@ -693,8 +695,10 @@ pub mod pallet {
 					VerificationProcessRecords::<T>::iter_prefix_values(consumer_id.clone())
 						.collect();
 
-				let (result, incentive_data) =
-					VerificationProcessData::eval_incentive(revealed_data_list);
+				let (result, incentive_data) = VerificationProcessData::eval_incentive(
+					revealed_data_list,
+					parameters.threshold_winning_percentage,
+				);
 
 				//TODO: more particular status of did creation
 				let did_creation_status = match result.clone() {

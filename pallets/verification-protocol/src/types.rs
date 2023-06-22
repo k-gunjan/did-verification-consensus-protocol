@@ -8,7 +8,10 @@ use frame_support::{pallet_prelude::ConstU32, BoundedVec};
 use core::cmp::{Eq, Ordering, PartialEq};
 use scale_info::TypeInfo;
 use sp_core::H256;
-use sp_runtime::FixedU128;
+use sp_runtime::{
+	traits::{Bounded, CheckedDiv, CheckedMul},
+	FixedI64, FixedU128,
+};
 use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
 
 /// Struct of the did verification request submitted by the consumer
@@ -200,6 +203,8 @@ pub struct VerificationProcessData<T: Config> {
 
 /// allot a task to a particular verifier
 impl<T: Config> VerificationProcessData<T> {
+	// static konst: u8 = 100u8;
+
 	pub fn allot_to_verifier(verifier: T::AccountId, current_block: T::BlockNumber) -> Self {
 		VerificationProcessData {
 			verifier_account_id: verifier,
@@ -220,7 +225,7 @@ impl<T: Config> VerificationProcessData<T> {
 			revealed_data: Some(revealed_data),
 		} = self
 		{
-			Some(VerificationProcessDataItem {
+			Some(VerificationProcessDataItem::<T> {
 				verifier_account_id,
 				allotted_at,
 				acknowledged,
@@ -317,6 +322,7 @@ impl<T: Config> VerificationProcessData<T> {
 	// update_data_of_verifier)
 	pub fn eval_incentive(
 		submissions: Vec<Self>,
+		threshold_winning_percentage: u8,
 	) -> (EvalVpResult, Vec<(T::AccountId, VerifierUpdateData)>) {
 		let mut data: Vec<(T::AccountId, VerifierUpdateData)> = Vec::new();
 		let mut completed_subs: Vec<VerificationProcessDataItem<T>> = Vec::new();
@@ -336,7 +342,10 @@ impl<T: Config> VerificationProcessData<T> {
 		});
 
 		let (result, partial_incentive_data) =
-			VerificationProcessDataItem::eval_incentive_on_completed(completed_subs);
+			VerificationProcessDataItem::eval_incentive_on_completed(
+				completed_subs,
+				threshold_winning_percentage,
+			);
 		data.extend(partial_incentive_data);
 		(result, data)
 	}
@@ -346,7 +355,10 @@ impl<T: Config> VerificationProcessDataItem<T> {
 	// evaluation the winner submission by majority wins
 	// takes the list of the Self
 	// returns : result=> submission with clear majority
-	fn eval_result(params: &[RevealedParameters]) -> EvalVpResult {
+	fn eval_result(
+		params: &[RevealedParameters],
+		threshold_winning_percentage: u8,
+	) -> EvalVpResult {
 		let mut counts = BTreeMap::new();
 		for p in params {
 			let count = counts.entry(p).or_insert(0);
@@ -373,8 +385,19 @@ impl<T: Config> VerificationProcessDataItem<T> {
 					// there is a tie and no clear majority
 					max_variant = None;
 				}
+			} else {
+				let winnig_percentage = FixedI64::from_u32(max_count)
+					.checked_div(&FixedI64::from_inner(params.len() as i64))
+					.unwrap_or_else(|| FixedI64::min_value())
+					.checked_mul(&FixedI64::from_inner(100))
+					.unwrap_or_else(|| FixedI64::min_value());
+				// check if threshold_winning percent is more than the threshold.
+				if winnig_percentage < FixedI64::from_inner(threshold_winning_percentage as i64) {
+					max_variant = None;
+				}
 			}
 		}
+
 		let result: EvalVpResult = match max_variant {
 			Some(variant) => match variant {
 				RevealedParameters::Reject => EvalVpResult::Rejected,
@@ -391,6 +414,7 @@ impl<T: Config> VerificationProcessDataItem<T> {
 	// (verifier_account, update_data_of_verifier)
 	fn eval_incentive_on_completed(
 		submissions: Vec<Self>,
+		threshold_winning_percentage: u8,
 	) -> (EvalVpResult, Vec<(T::AccountId, VerifierUpdateData)>) {
 		// let mut data: BTreeMap<K, V> = BTreeMap::new();
 		let entries: Vec<RevealedParameters> = submissions
@@ -400,7 +424,7 @@ impl<T: Config> VerificationProcessDataItem<T> {
 				rd
 			})
 			.collect();
-		let result: EvalVpResult = Self::eval_result(&entries[..]);
+		let result: EvalVpResult = Self::eval_result(&entries[..], threshold_winning_percentage);
 		// let fastest = submissions.iter().min().ok_or(())?;
 		// let slowest = submissions.iter().min().ok_or(())?;
 		// let denominator = fastest.timetaken() - slowest.timetaken();
@@ -467,6 +491,7 @@ pub struct ProtocolParameterValues {
 	pub min_count_at_submit_vp_stage: u16,
 	pub min_count_at_reveal_stage: u16,
 	pub max_waiting_time_at_stages: u32,
+	pub threshold_winning_percentage: u8,
 }
 
 impl Default for ProtocolParameterValues {
@@ -478,6 +503,7 @@ impl Default for ProtocolParameterValues {
 			min_count_at_submit_vp_stage: 4,
 			min_count_at_reveal_stage: 4,
 			max_waiting_time_at_stages: 1200,
+			threshold_winning_percentage: 50,
 		}
 	}
 }
