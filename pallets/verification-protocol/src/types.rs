@@ -498,12 +498,12 @@ impl Default for ProtocolParameterValues {
 	fn default() -> Self {
 		ProtocolParameterValues {
 			max_length_list_of_documents: 150,
-			min_count_at_allot_stage: 4,
-			min_count_at_ack_accept_stage: 4,
-			min_count_at_submit_vp_stage: 4,
+			min_count_at_allot_stage: 16,
+			min_count_at_ack_accept_stage: 12,
+			min_count_at_submit_vp_stage: 8,
 			min_count_at_reveal_stage: 4,
 			max_waiting_time_at_stages: 1200,
-			threshold_winning_percentage: 50,
+			threshold_winning_percentage: 66,
 		}
 	}
 }
