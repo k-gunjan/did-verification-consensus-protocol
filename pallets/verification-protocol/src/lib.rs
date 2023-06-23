@@ -297,13 +297,8 @@ pub mod pallet {
 			let current_block = <frame_system::Pallet<T>>::block_number();
 			// fetch the protocol parameters
 			let parameters = Self::protocol_parameters();
-			// log::info!(
-			// 	"lisf of doc text:{:?}, length:{:?}, max-length-allowed:{:?}",
-			// 	_list_of_documents,
-			// 	_list_of_documents.len(),
-			// 	parameters.max_length_list_of_documents,
-			// );
-			// //ensure the length of the list of the doc is proper
+
+			//ensure the length of the doc URL is proper
 			let bounded_list_of_doc: BoundedVec<u8, T::MaxLengthListOfDocuments> =
 				_list_of_documents.try_into().map_err(|_| Error::<T>::ListOfDocsTooLong)?;
 			ensure!(bounded_list_of_doc.len() >= 5u8.into(), Error::<T>::ListOfDocsTooShort);
@@ -337,9 +332,9 @@ pub mod pallet {
 			current_block: T::BlockNumber,
 			verifiers: Vec<T::AccountId>,
 			verification_requests: Vec<(&T::AccountId, u16)>,
-		) -> DispatchResult {
-			log::info!(
-				"----total requests pending for allotment:{:?}",
+		) -> Result<(), Error<T>> {
+			log::debug!(
+				"*-*-*-*-*-*-total requests pending for allotment:{:?}",
 				verification_requests.len()
 			);
 
@@ -347,39 +342,36 @@ pub mod pallet {
 				verification_requests.clone().iter().map(|(_, c)| *c as u32).sum();
 			let mut looped_verifiers: Vec<_> =
 				verifiers.iter().cycle().take(total_v_required as usize).collect();
-			// log::info!(
-			// 	"total verifiers required:{:?}, total v in looped list:{:?}",
-			// 	total_v_required,
-			// 	looped_verifiers.len()
-			// );
+			log::debug!(
+				"*-*-*-*-*-*-total verifiers required:{:?}, total count of verifiers in :{:?}",
+				total_v_required,
+				verifiers.len()
+			);
 
 			// fetch protocol parameters
 			let parameters = Self::protocol_parameters();
+			// for every `consumer_id` the task will be allot to `count` verifiers
 			for (consumer_id, count) in verification_requests.into_iter() {
-				// let mut vr = VerificationRequests::<T>::take(consumer_id).unwrap();
-				VerificationRequests::<T>::try_mutate(consumer_id, |v| -> DispatchResult {
+				VerificationRequests::<T>::try_mutate(consumer_id, |v| -> Result<(), Error<T>> {
 					let mut vr = v.as_mut().ok_or(Error::<T>::NoDidReqFound)?;
 
 					let mut allotted_to_count = 0;
+					let mut skipped_verifiers = Vec::new();
 
 					for _i in 0..count {
-						// log::info!("**********alltting:{:?} , out of total: {:?}", i, count);
-						// log::info!(
-						// 	"*-*-*-*-*-*-allotting for task:{:?}, to v number:{:?}",
-						// 	&consumer_id,
-						// 	count
-						// );
 						let a_v = looped_verifiers.pop();
 						match a_v {
 							Some(v) => {
 								if <VerificationProcessRecords<T>>::contains_key(consumer_id, v) {
-									// log::warn!(
-									// 	"##warning## attempting to allot again. state: count:{:?}",
-									// 	i
-									// );
-									// put the  removed verifier back in the list
-									looped_verifiers.push(v);
-									break
+									log::debug!(
+										"This verifier: {:?} has already got this task of:{:?}",
+										consumer_id,
+										v
+									);
+									// put the removed verifier in a temp list to put them back
+									// in the verifiers list in the end of this
+									skipped_verifiers.push(v);
+									continue
 								}
 
 								let vpdata = VerificationProcessData::allot_to_verifier(
@@ -398,6 +390,8 @@ pub mod pallet {
 							None => break,
 						}
 					}
+					// append the skipped verifiers back to the main list
+					looped_verifiers.append(&mut skipped_verifiers);
 
 					if allotted_to_count > 0 {
 						// update general stage of the task
@@ -605,9 +599,9 @@ pub mod pallet {
 		fn act_on_wait_over_for_ack(
 			current_block: T::BlockNumber,
 			list_verification_req: Vec<&T::AccountId>,
-		) -> DispatchResult {
+		) -> Result<(), Error<T>> {
 			for consumer_id in list_verification_req {
-				VerificationRequests::<T>::try_mutate(consumer_id, |v| -> DispatchResult {
+				VerificationRequests::<T>::try_mutate(consumer_id, |v| -> Result<(), Error<T>> {
 					let mut vr = v.as_mut().ok_or(Error::<T>::NoDidReqFound)?;
 					let num_of_new_verifiers_required_allot =
 						vr.state.ack.pending_count_of_verifiers * 2;
@@ -627,9 +621,9 @@ pub mod pallet {
 		fn act_on_wait_over_for_submit_vp(
 			current_block: T::BlockNumber,
 			list_verification_req: Vec<&T::AccountId>,
-		) -> DispatchResult {
+		) -> Result<(), Error<T>> {
 			for consumer_id in list_verification_req {
-				VerificationRequests::<T>::try_mutate(consumer_id, |v| -> DispatchResult {
+				VerificationRequests::<T>::try_mutate(consumer_id, |v| -> Result<(), Error<T>> {
 					let mut vr = v.as_mut().ok_or(Error::<T>::NoDidReqFound)?;
 					let num_of_new_verifiers_required_allot =
 						vr.state.submit_vp.pending_count_of_verifiers * 3;
@@ -661,10 +655,10 @@ pub mod pallet {
 		fn start_reveal(
 			current_block: T::BlockNumber,
 			list_verification_req: Vec<&T::AccountId>,
-		) -> DispatchResult {
+		) -> Result<(), Error<T>> {
 			let parameters = Self::protocol_parameters();
 			for consumer_id in list_verification_req {
-				VerificationRequests::<T>::try_mutate(consumer_id, |v| -> DispatchResult {
+				VerificationRequests::<T>::try_mutate(consumer_id, |v| -> Result<(), Error<T>> {
 					let mut vr = v.as_mut().ok_or(Error::<T>::NoDidReqFound)?;
 					// vr.start_allot(num_of_new_verifiers_required_allot, 0, current_block);
 					start_stage!(
@@ -750,7 +744,7 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
-		pub(crate) fn app_chain_tasks(current_block: T::BlockNumber) -> DispatchResult {
+		pub(crate) fn app_chain_tasks(current_block: T::BlockNumber) -> Result<(), Error<T>> {
 			// // get sorted list of verifiers to receive tasks
 			let active_verifiers: Vec<T::AccountId> = T::VerifiersProvider::get_verifiers();
 
@@ -788,9 +782,11 @@ pub mod pallet {
 						if let Err(_) =
 							T::VerifiersProvider::update_verifier_profiles(s, current_block)
 						{
-							log::info!("error in updating the incentive feed to verifier profiles");
+							log::error!(
+								"error in updating the incentive feed to verifier profiles"
+							);
 						},
-					Err(_) => log::info!("Error in evaluating incentive data feed"),
+					Err(_) => log::error!("Error in evaluating incentive data feed"),
 				}
 			}
 
@@ -801,7 +797,10 @@ pub mod pallet {
 			// END--check new task pending for allotment
 			//---start reveal check ---
 			if submit_vp_completed.len() > 0 {
-				// log::info!("%%%--%%% found start reveal cases:{:?}", submit_vp_completed.len());
+				log::debug!(
+					"%%%--%%% found start reveal cases. count:{:?}",
+					submit_vp_completed.len()
+				);
 				Self::start_reveal(current_block, submit_vp_completed)?;
 			};
 			// end --start reveal check --
@@ -883,7 +882,7 @@ pub mod pallet {
 					if split_vec[3].len() != 32 ||
 						split_vec[4].len() != 32 || split_vec[5].len() != 32
 					{
-						log::error!("X0X0X0X0-----InvalidRevealedData length");
+						log::debug!("X0X0X0X0-----InvalidRevealedData ");
 						return Err(Error::<T>::InvalidRevealedData.into())
 					}
 					let mut at_least_one = false;

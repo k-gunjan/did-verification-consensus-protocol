@@ -1,8 +1,5 @@
 use crate::{types::VerifierUpdateData, Config, Error};
 use frame_support::{dispatch::DispatchResult, inherent::Vec};
-// use frame_support::pallet_prelude::ConstU32;
-// use frame_support::traits::ConstU8;
-// use frame_support::BoundedVec;
 
 /// Traits of verification process
 pub trait VerificationProcess<C: Config> {
@@ -19,7 +16,7 @@ pub trait VerificationProcess<C: Config> {
 		current_block: C::BlockNumber,
 		verifiers: Vec<C::AccountId>,
 		verification_reuests: Vec<(&C::AccountId, u16)>,
-	) -> DispatchResult;
+	) -> Result<(), Error<C>>;
 
 	/// Acknowledge the acceptence with confidence score
 	fn ack_verification_task(
@@ -67,7 +64,7 @@ pub trait VerificationProcess<C: Config> {
 	fn act_on_wait_over_for_ack(
 		current_block: C::BlockNumber,
 		verification_req_id: Vec<&C::AccountId>,
-	) -> DispatchResult;
+	) -> Result<(), Error<C>>;
 
 	/// Check if wait time for submit_vp is over. re-allot to
 	/// more verifiers if wait is over and not completely fulfilled
@@ -75,13 +72,13 @@ pub trait VerificationProcess<C: Config> {
 	fn act_on_wait_over_for_submit_vp(
 		current_block: C::BlockNumber,
 		list_verification_req: Vec<&C::AccountId>,
-	) -> DispatchResult;
+	) -> Result<(), Error<C>>;
 
 	/// Start the reveal stage
 	fn start_reveal(
 		current_block: C::BlockNumber,
 		list_verification_req: Vec<&C::AccountId>,
-	) -> DispatchResult;
+	) -> Result<(), Error<C>>;
 
 	/// eval the submissions to get the result: accept/reject/can't decide
 	fn eval(

@@ -136,7 +136,6 @@ pub mod pallet {
 			if last_verifiers != new_verifiers {
 				if new_verifiers.len() as u32 > T::MaxEligibleVerifiers::get() {
 					log::warn!(
-						target: LOG_TARGET,
 						"next verifiers list larger than {}, truncating",
 						T::MaxEligibleVerifiers::get(),
 					);
@@ -464,7 +463,7 @@ pub mod pallet {
 							},
 						}
 					} else {
-						log::info!("+++++++++++++verifier not found+++++++++++++++++");
+						log::error!("+++++++++++++verifier not found+++++++++++++++++");
 					}
 					Ok(())
 				})?;
