@@ -1180,7 +1180,7 @@ impl pallet_adoption::Config for Runtime {
 impl pallet_did::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Time = Timestamp;
-	// type WeightInfo = pallet_did::weights::SubstrateWeight<Runtime>;
+	type WeightInfo = pallet_did::weights::SubstrateWeight<Runtime>;
 }
 
 // //parameters of pallet verification protocol & verifiers
@@ -1765,41 +1765,41 @@ impl_runtime_apis! {
 			// let storage_info = AllPalletsWithSystem::storage_info();
 
 			macro_rules! storage_info {
-                ($($pallet: ty),+) => {
-                    [$(<$pallet>::storage_info()),+].concat()
-                }
-            }
+				($($pallet: ty),+) => {
+					[$(<$pallet>::storage_info()),+].concat()
+				}
+			}
 
 			let storage_info = storage_info!(
-                System,
-                Timestamp,
-                Balances,
+				System,
+				Timestamp,
+				Balances,
 				Multisig,
-                Session,
-                Grandpa,
-                Authorship,
-                TransactionPayment,
-                Utility,
-                Sudo,
-                Democracy,
-                Council,
-                TechnicalCommittee,
-                TechnicalMembership,
-                Scheduler,
-                AuthorityDiscovery,
-                Historical,
-                ImOnline,
-                Babe,
-                Staking,
+				Session,
+				Grandpa,
+				Authorship,
+				TransactionPayment,
+				Utility,
+				Sudo,
+				Democracy,
+				Council,
+				TechnicalCommittee,
+				TechnicalMembership,
+				Scheduler,
+				AuthorityDiscovery,
+				Historical,
+				ImOnline,
+				Babe,
+				Staking,
 				VoterList,
 				Preimage,
 				Mmr,
-                ElectionProviderMultiPhase,
-                Offences,
-                Treasury,
-                Elections,
+				ElectionProviderMultiPhase,
+				Offences,
+				Treasury,
+				Elections,
 				NominationPools
-            );
+			);
 
 			(list, storage_info)
 		}
@@ -1846,13 +1846,13 @@ impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_timestamp, Timestamp);
 			add_benchmark!(params, batches, pallet_multisig, Multisig);
 			add_benchmark!(params, batches, pallet_collective, Council);
-            add_benchmark!(params, batches, pallet_democracy, Democracy);
-            add_benchmark!(params, batches, pallet_scheduler, Scheduler);
-            add_benchmark!(params, batches, pallet_babe, Babe);
+			add_benchmark!(params, batches, pallet_democracy, Democracy);
+			add_benchmark!(params, batches, pallet_scheduler, Scheduler);
+			add_benchmark!(params, batches, pallet_babe, Babe);
 			add_benchmark!(params, batches, pallet_staking, Staking);
-            add_benchmark!(params, batches, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
-            add_benchmark!(params, batches, pallet_grandpa, Grandpa);
-            add_benchmark!(params, batches, pallet_im_online, ImOnline);
+			add_benchmark!(params, batches, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
+			add_benchmark!(params, batches, pallet_grandpa, Grandpa);
+			add_benchmark!(params, batches, pallet_im_online, ImOnline);
 
 			add_benchmark!(params, batches, pallet_did, DidModule);
 

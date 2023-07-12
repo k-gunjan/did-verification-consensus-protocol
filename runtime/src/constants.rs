@@ -24,7 +24,7 @@ pub mod currency {
 	/// Constant values used within the runtime.
 	pub const MICROPAN: Balance = 1_000_000;
 	pub const MILLIPAN: Balance = 1_000 * MICROPAN;
-	pub const CENTS: Balance = 10 * MILLIPAN; // assume this is worth about a cent.				
+	pub const CENTS: Balance = 10 * MILLIPAN; // assume this is worth about a cent.
 	pub const PAN: Balance = 100 * CENTS;
 
 	pub const INIT_SUPPLY_FACTOR: Balance = 100;

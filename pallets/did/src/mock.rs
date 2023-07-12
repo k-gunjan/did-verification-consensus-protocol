@@ -27,9 +27,9 @@ frame_support::construct_runtime!(
 );
 
 parameter_types! {
-    pub const BlockHashCount: u64 = 250;
-    pub const SS58Prefix: u8 = 42;
-    pub const BlockNumber: u64 = 5;
+	pub const BlockHashCount: u64 = 250;
+	pub const SS58Prefix: u8 = 42;
+	pub const BlockNumber: u64 = 5;
 }
 
 impl system::Config for Test {
@@ -62,7 +62,7 @@ impl system::Config for Test {
 impl pallet_did::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Time = Timestamp;
-	// type WeightInfo = pallet_did:weights::SubstrateWeight<Test>;
+	type WeightInfo = pallet_did::weights::SubstrateWeight<Test>;
 }
 
 parameter_types! {
@@ -78,14 +78,11 @@ impl pallet_timestamp::Config for Test {
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	system::GenesisConfig::default()
-		.build_storage::<Test>()
-		.unwrap()
-		.into()
+	system::GenesisConfig::default().build_storage::<Test>().unwrap().into()
 }
 
 pub fn account_key(s: &str) -> sr25519::Public {
-    sr25519::Pair::from_string(&format!("//{}", s), None)
-        .expect("static values are valid; qed")
-        .public()
+	sr25519::Pair::from_string(&format!("//{}", s), None)
+		.expect("static values are valid; qed")
+		.public()
 }

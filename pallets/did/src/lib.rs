@@ -4,7 +4,6 @@
 /// <https://substrate.dev/docs/en/knowledgebase/runtime/frame>
 /// Based on pallet-DID from https://github.com/substrate-developer-hub/pallet-did
 /// The DID pallet allows resolving and management for DIDs (Decentralized Identifiers).
-
 pub use pallet::*;
 pub mod did;
 pub mod types;
@@ -18,11 +17,15 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
+pub mod weights;
+pub use weights::WeightInfo;
+
 #[frame_support::pallet]
 pub mod pallet {
+	use super::WeightInfo;
 	use crate::did::Did;
 	pub use crate::types::*;
-
+	pub use frame_support::traits::Time as MomentTime;
 	use frame_support::{
 		dispatch::DispatchResult,
 		// debug,
@@ -31,7 +34,6 @@ pub mod pallet {
 		pallet_prelude::*,
 		sp_io::hashing::blake2_256,
 	};
-	pub use frame_support::traits::Time as MomentTime;
 	use frame_system::pallet_prelude::*;
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
@@ -40,6 +42,8 @@ pub mod pallet {
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type Time: MomentTime;
+		/// Weight information for extrinsics in this pallet.
+		type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::pallet]
@@ -89,24 +93,11 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// Event emitted when an attribute has been added.
-        AttributeAdded (
-            T::AccountId,
-            Vec<u8>,
-            Vec<u8>,
-            Option<T::BlockNumber>,
-		),
+		AttributeAdded(T::AccountId, Vec<u8>, Vec<u8>, Option<T::BlockNumber>),
 		/// Attribute not found
-		AttributeNotFound (
-			T::AccountId,
-			T::AccountId,
-			Vec<u8>,
-		),
+		AttributeNotFound(T::AccountId, T::AccountId, Vec<u8>),
 		/// Event emitted when an attribute is read successfully
-		AttributeFetched (
-			T::AccountId,
-			T::AccountId,
-			Vec<u8>,
-		),
+		AttributeFetched(T::AccountId, T::AccountId, Vec<u8>),
 	}
 
 	// Errors inform users that something went wrong.
@@ -129,7 +120,8 @@ pub mod pallet {
 	}
 
 	impl<T: Config>
-		Did<T::AccountId, T::BlockNumber, <<T as Config>::Time as MomentTime>::Moment, Error<T>> for Pallet<T>
+		Did<T::AccountId, T::BlockNumber, <<T as Config>::Time as MomentTime>::Moment, Error<T>>
+		for Pallet<T>
 	{
 		/// Validates if the AccountId 'actual_owner' owns the identity.
 		fn is_owner(identity: &T::AccountId, actual_owner: &T::AccountId) -> Result<(), Error<T>> {
@@ -267,7 +259,8 @@ pub mod pallet {
 	// frame_system::Config>::AccountId>
 	{
 		/// Creates a new attribute as part of an identity.
-		#[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1,1).ref_time())]
+		#[pallet::call_index(0)]
+		#[pallet::weight(T::WeightInfo::add_attribute())]
 		pub fn add_attribute(
 			origin: OriginFor<T>,
 			identity: T::AccountId,
@@ -280,17 +273,13 @@ pub mod pallet {
 
 			Self::create_attribute(&who, &identity, &name, &value, valid_for)?;
 			// Emit an event that a new id has been added.
-			Self::deposit_event(Event::AttributeAdded(
-                        identity,
-                        name,
-                        value,
-                        valid_for,
-                    ));
-            Ok(())
+			Self::deposit_event(Event::AttributeAdded(identity, name, value, valid_for));
+			Ok(())
 		}
 
 		///fetch an attribute of an identity
-		#[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1,1).ref_time())]
+		#[pallet::call_index(1)]
+		#[pallet::weight(T::WeightInfo::get_attribute())]
 		pub fn get_attribute(
 			origin: OriginFor<T>,
 			identity: T::AccountId,
@@ -304,13 +293,11 @@ pub mod pallet {
 				Some(_) => {
 					//emit event on read of an attribute
 					//may be considered to suppress it
-					Self::deposit_event(Event::AttributeFetched ( who, identity, name ));
+					Self::deposit_event(Event::AttributeFetched(who, identity, name));
 				},
 				None => {
 					//raise error
 					return Err(Error::<T>::AttributeNotFound.into())
-					// Self::deposit_event(Event::AttributeNotFound { who: who, identity: identity,
-					// name: name});
 				},
 			}
 			Ok(())
