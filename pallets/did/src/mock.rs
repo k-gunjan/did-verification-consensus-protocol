@@ -26,12 +26,6 @@ frame_support::construct_runtime!(
 	}
 );
 
-parameter_types! {
-	pub const BlockHashCount: u64 = 250;
-	pub const SS58Prefix: u8 = 42;
-	pub const BlockNumber: u64 = 5;
-}
-
 impl system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
 	type BlockWeights = ();
@@ -73,7 +67,7 @@ impl pallet_timestamp::Config for Test {
 	type Moment = u64;
 	type OnTimestampSet = ();
 	type MinimumPeriod = MinimumPeriod1;
-	type WeightInfo = (); //pallet_timestamp::weights::SubstrateWeight<Runtime>;
+	type WeightInfo = ();
 }
 
 // Build genesis storage according to the mock runtime.
