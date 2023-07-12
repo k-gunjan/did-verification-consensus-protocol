@@ -1,8 +1,10 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-/// Based on pallet-DID from https://github.com/substrate-developer-hub/pallet-did
 /// Learn more about FRAME and the core library of Substrate FRAME pallets:
 /// <https://substrate.dev/docs/en/knowledgebase/runtime/frame>
+/// Based on pallet-DID from https://github.com/substrate-developer-hub/pallet-did
+/// The DID pallet allows resolving and management for DIDs (Decentralized Identifiers).
+
 pub use pallet::*;
 pub mod did;
 pub mod types;
@@ -29,38 +31,21 @@ pub mod pallet {
 		pallet_prelude::*,
 		sp_io::hashing::blake2_256,
 	};
-	// use runtime_io::{ self };
-	pub use frame_support::traits::Time;
+	pub use frame_support::traits::Time as MomentTime;
 	use frame_system::pallet_prelude::*;
-	// use sp_io::hashing::blake2_256;
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		/// Because this pallet emits events, it depends on the runtime's definition of an event.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-		// // type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
-		// type Public: IdentifyAccount<AccountId = Self::AccountId>;
-		// type Signature: Verify<Signer = Self::Public> + Member + Decode + Encode;
-		type Time: Time;
+		type Time: MomentTime;
 	}
 
 	#[pallet::pallet]
 	#[pallet::without_storage_info]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
-
-	/// Identity delegates stored by type.
-	/// Delegates are only valid for a specific period defined as blocks number.
-	#[pallet::storage]
-	#[pallet::getter(fn delegate_of)]
-	pub(super) type DelegateOf<T: Config> = StorageMap<
-		//&identity, delegate_type, delegate), &validity)
-		_,
-		Blake2_128Concat,
-		(T::AccountId, Vec<u8>, T::AccountId),
-		T::BlockNumber,
-	>;
 
 	/// The attributes that belong to an identity.
 	#[pallet::storage]
@@ -69,7 +54,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		(T::AccountId, [u8; 32]),
-		Attribute<T::BlockNumber, <<T as Config>::Time as Time>::Moment>,
+		Attribute<T::BlockNumber, <<T as Config>::Time as MomentTime>::Moment>,
 		ValueQuery,
 	>;
 
@@ -95,7 +80,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		T::AccountId,
-		(T::AccountId, T::BlockNumber, <<T as Config>::Time as Time>::Moment),
+		(T::AccountId, T::BlockNumber, <<T as Config>::Time as MomentTime>::Moment),
 	>;
 
 	// Pallets use events to inform users when important changes are made.
@@ -103,46 +88,48 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		AttributeAdded {
-			identity: T::AccountId,
-			name: Vec<u8>,
-			till: Option<T::BlockNumber>,
-		},
+		/// Event emitted when an attribute has been added.
+        AttributeAdded (
+            T::AccountId,
+            Vec<u8>,
+            Vec<u8>,
+            Option<T::BlockNumber>,
+		),
 		/// Attribute not found
-		AttributeNotFound {
-			who: T::AccountId,
-			identity: T::AccountId,
-			name: Vec<u8>,
-		},
-		/// Attribute fetched
-		AttributeFetched {
-			who: T::AccountId,
-			identity: T::AccountId,
-			name: Vec<u8>,
-		},
+		AttributeNotFound (
+			T::AccountId,
+			T::AccountId,
+			Vec<u8>,
+		),
+		/// Event emitted when an attribute is read successfully
+		AttributeFetched (
+			T::AccountId,
+			T::AccountId,
+			Vec<u8>,
+		),
 	}
 
 	// Errors inform users that something went wrong.
 	#[pallet::error]
 	pub enum Error<T> {
+		// AccountId 'actual_owner' owns the identity.
 		NotOwner,
-		InvalidDelegate,
-		BadSignature,
-		AttributeCreationFailed,
+		// reset attribute validity failed
 		AttributeResetFailed,
-		AttributeRemovalFailed,
+		// Validates an attribute
 		InvalidAttribute,
+		// Overflow call
 		Overflow,
-		BadTransaction,
+		// Name is greater that 64
 		AttributeNameExceedMax64,
-		/// error if creating the existing one
+		// Attribute already exist
 		DuplicateNotNeeded,
-		/// error if atritbute is not found
+		// Attribute was not found
 		AttributeNotFound,
 	}
 
 	impl<T: Config>
-		Did<T::AccountId, T::BlockNumber, <<T as Config>::Time as Time>::Moment, Error<T>> for Pallet<T>
+		Did<T::AccountId, T::BlockNumber, <<T as Config>::Time as MomentTime>::Moment, Error<T>> for Pallet<T>
 	{
 		/// Validates if the AccountId 'actual_owner' owns the identity.
 		fn is_owner(identity: &T::AccountId, actual_owner: &T::AccountId) -> Result<(), Error<T>> {
@@ -160,65 +147,6 @@ pub mod pallet {
 				Some(id) => id,
 				None => identity.clone(),
 			}
-		}
-
-		/// Validates if a delegate belongs to an identity and it has not expired.
-		fn valid_delegate(
-			identity: &T::AccountId,
-			delegate_type: &[u8],
-			delegate: &T::AccountId,
-		) -> DispatchResult {
-			ensure!(delegate_type.len() <= 64, Error::<T>::InvalidDelegate);
-			ensure!(
-				Self::valid_listed_delegate(identity, delegate_type, delegate).is_ok() &&
-					Self::is_owner(identity, delegate).is_ok(),
-				Error::<T>::InvalidDelegate
-			);
-			Ok(())
-		}
-
-		/// Validates that a delegate contains_key for specific purpose and remains valid at this
-		/// block high.
-		fn valid_listed_delegate(
-			identity: &T::AccountId,
-			delegate_type: &[u8],
-			delegate: &T::AccountId,
-		) -> DispatchResult {
-			ensure!(
-				<DelegateOf<T>>::contains_key((&identity, delegate_type, &delegate)),
-				Error::<T>::InvalidDelegate
-			);
-
-			let validity = Self::delegate_of((identity, delegate_type, delegate));
-			match validity > Some(<frame_system::Pallet<T>>::block_number()) {
-				true => Ok(()),
-				false => Err(Error::<T>::InvalidDelegate.into()),
-			}
-		}
-
-		// Creates a new delegete for an account.
-		fn create_delegate(
-			who: &T::AccountId,
-			identity: &T::AccountId,
-			delegate: &T::AccountId,
-			delegate_type: &[u8],
-			valid_for: Option<T::BlockNumber>,
-		) -> DispatchResult {
-			Self::is_owner(&identity, who)?;
-			ensure!(who != delegate, Error::<T>::InvalidDelegate);
-			ensure!(
-				!Self::valid_listed_delegate(identity, delegate_type, delegate).is_ok(),
-				Error::<T>::InvalidDelegate
-			);
-
-			let now_block_number = <frame_system::Pallet<T>>::block_number();
-			let validity: T::BlockNumber = match valid_for {
-				Some(blocks) => now_block_number + blocks,
-				None => u32::max_value().into(),
-			};
-
-			<DelegateOf<T>>::insert((&identity, delegate_type, delegate), &validity);
-			Ok(())
 		}
 
 		/// Adds a new attribute to an identity and colects the storage fee.
@@ -309,7 +237,7 @@ pub mod pallet {
 		fn attribute_and_id(
 			identity: &T::AccountId,
 			name: &[u8],
-		) -> Option<AttributedId<T::BlockNumber, <<T as Config>::Time as Time>::Moment>> {
+		) -> Option<AttributedId<T::BlockNumber, <<T as Config>::Time as MomentTime>::Moment>> {
 			let nonce = Self::nonce_of((&identity, name.to_vec()));
 
 			// Used for first time attribute creation
@@ -339,12 +267,6 @@ pub mod pallet {
 	// frame_system::Config>::AccountId>
 	{
 		/// Creates a new attribute as part of an identity.
-		/// Sets its expiration period.
-		/// takes following arguments
-		/// 1. identity - identity of the user
-		/// 2. name - name of the attribute
-		/// 3. value - value of the attribute
-		/// 4. valid_for - validity of the attribute
 		#[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1,1).ref_time())]
 		pub fn add_attribute(
 			origin: OriginFor<T>,
@@ -358,15 +280,16 @@ pub mod pallet {
 
 			Self::create_attribute(&who, &identity, &name, &value, valid_for)?;
 			// Emit an event that a new id has been added.
-			Self::deposit_event(Event::AttributeAdded { identity, name, till: valid_for });
-			Ok(())
+			Self::deposit_event(Event::AttributeAdded(
+                        identity,
+                        name,
+                        value,
+                        valid_for,
+                    ));
+            Ok(())
 		}
 
 		///fetch an attribute of an identity
-		/// takes following arguments
-		/// 1. identity - identity of the user
-		/// 2. name - name of the attribute
-		/// returns the attribute in the event
 		#[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1,1).ref_time())]
 		pub fn get_attribute(
 			origin: OriginFor<T>,
@@ -381,7 +304,7 @@ pub mod pallet {
 				Some(_) => {
 					//emit event on read of an attribute
 					//may be considered to suppress it
-					Self::deposit_event(Event::AttributeFetched { who, identity, name });
+					Self::deposit_event(Event::AttributeFetched ( who, identity, name ));
 				},
 				None => {
 					//raise error
@@ -404,7 +327,7 @@ pub mod pallet {
 		pub fn read_attribute(
 			identity: &T::AccountId,
 			name: &[u8],
-		) -> Option<Attribute<T::BlockNumber, <<T as Config>::Time as Time>::Moment>> {
+		) -> Option<Attribute<T::BlockNumber, <<T as Config>::Time as MomentTime>::Moment>> {
 			let nonce = Self::nonce_of((&identity, name.to_vec()));
 
 			// Used for first time attribute creation
