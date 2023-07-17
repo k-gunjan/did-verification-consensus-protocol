@@ -1174,6 +1174,7 @@ impl pallet_adoption::Config for Runtime {
 	type MinCIDLength = MinCIDLength;
 	type MaxCIDLength = MaxCIDLength;
 	type Currency = Balances;
+	type WeightInfo = pallet_adoption::weights::SubstrateWeight<Runtime>;
 }
 
 // Configure the pallet-did in pallets/did.
@@ -1760,6 +1761,7 @@ impl_runtime_apis! {
 			// list_benchmark!(list, extra, pallet_timestamp, Timestamp);
 			// list_benchmark!(list, extra, pallet_multisig, Multisig);
 			list_benchmark!(list, extra, pallet_did, DidModule);
+			list_benchmark!(list, extra, pallet_adoption, AdoptionModule);
 
 
 			// let storage_info = AllPalletsWithSystem::storage_info();
@@ -1855,6 +1857,7 @@ impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_im_online, ImOnline);
 
 			add_benchmark!(params, batches, pallet_did, DidModule);
+			add_benchmark!(params, batches, pallet_adoption, AdoptionModule);
 
 			Ok(batches)
 		}
