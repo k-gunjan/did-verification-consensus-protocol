@@ -193,6 +193,7 @@ pub mod pallet {
 		/// 1. list of documents submitted for verification. Douments are uploaded in
 		/// IPFS and CIDs are submitted here
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1).ref_time())]
+		#[pallet::call_index(0)]
 		pub fn submit_did_creation_request(
 			origin: OriginFor<T>,
 			_list_of_documents: Vec<u8>,
@@ -219,6 +220,7 @@ pub mod pallet {
 		/// Confidence score is taken into account while calculating reward/penalty and gamify the
 		/// protocol
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1).ref_time())]
+		#[pallet::call_index(1)]
 		pub fn accept_verification_task(
 			origin: OriginFor<T>,
 			consumer_account_id: T::AccountId,
@@ -236,6 +238,7 @@ pub mod pallet {
 		/// 1. Account Id of the consumer
 		/// 2. verification parameters
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1).ref_time())]
+		#[pallet::call_index(2)]
 		pub fn submit_verification_data(
 			origin: OriginFor<T>,
 			consumer_account_id: T::AccountId,
@@ -254,6 +257,7 @@ pub mod pallet {
 		/// Change protocol parameters
 		/// takes new parameters and updates the default value
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1).ref_time())]
+		#[pallet::call_index(3)]
 		pub fn update_protocol_parameters(
 			origin: OriginFor<T>,
 			new_parameters: ProtocolParameterValues,
@@ -270,6 +274,7 @@ pub mod pallet {
 		/// 2. verification parameters
 		/// 3. Secret which was used as salt
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1).ref_time())]
+		#[pallet::call_index(4)]
 		pub fn reveal_data(
 			origin: OriginFor<T>,
 			consumer_account_id: T::AccountId,
