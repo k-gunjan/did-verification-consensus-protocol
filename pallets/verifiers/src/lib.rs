@@ -30,7 +30,7 @@ pub mod pallet {
 		PalletId,
 	};
 
-	use frame_support::{sp_runtime::SaturatedConversion, LOG_TARGET};
+	use frame_support::sp_runtime::SaturatedConversion;
 	use frame_system::pallet_prelude::*;
 	use sp_runtime::{
 		traits::{Bounded, CheckedAdd, CheckedMul, CheckedSub, Zero},

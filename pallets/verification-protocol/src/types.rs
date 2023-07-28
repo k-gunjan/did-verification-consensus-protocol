@@ -507,3 +507,13 @@ impl Default for ProtocolParameterValues {
 		}
 	}
 }
+
+pub type Country = BoundedVec<u8, ConstU32<100>>;
+pub type IdIssuer = BoundedVec<u8, ConstU32<150>>;
+
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug, Ord, Eq, PartialOrd)]
+pub struct IdType {
+	name: BoundedVec<u8, ConstU32<100>>,
+	issuer: IdIssuer,
+	pub country: Country,
+}
