@@ -8,14 +8,18 @@ pub use pallet::*;
 #[cfg(test)]
 mod mock;
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
-// #[cfg(feature = "runtime-benchmarks")]
-// mod benchmarking;
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+
+pub mod weights;
+pub use weights::WeightInfo;
 
 #[frame_support::pallet]
 pub mod pallet {
+	use super::WeightInfo;
 	use frame_support::{
 		dispatch::DispatchResult,
 		// debug,
@@ -24,7 +28,6 @@ pub mod pallet {
 		sp_runtime::SaturatedConversion,
 		traits::Currency,
 	};
-	// use runtime_io::{ self };
 	use core::convert::TryInto;
 	use frame_system::pallet_prelude::*;
 	use scale_info::TypeInfo;
@@ -49,6 +52,8 @@ pub mod pallet {
 		type MaxCIDLength: Get<u32>;
 		/// The Currency handler for the pallet.
 		type Currency: Currency<Self::AccountId>;
+		/// Weight information for extrinsics in this pallet.
+		type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::pallet]
@@ -120,19 +125,21 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// Event emitted when a new member is added.
-		NewMemberAdded { member: T::AccountId },
+		NewMemberAdded(T::AccountId),
 		/// Event emitted when a member is removed.
-		MemberRemoved { member: T::AccountId },
+		MemberRemoved(T::AccountId),
 		///New partner addition event
-		NewPartnerAdded { id: Vec<u8>, cid: Vec<u8> },
+		NewPartnerAdded(Vec<u8>, Vec<u8>),
 		///New adoption event type added
-		NewEventTypeAdded { etype: Vec<u8>, details: Vec<u8> },
+		NewEventTypeAdded(Vec<u8>, Vec<u8>),
 		///New adoption event added
-		NewEventAdded { event_id: Vec<u8> },
+		NewEventAdded(Vec<u8>),
 		///new participant added to an event
-		NewParticipantAdded { event_id: Vec<u8>, member: T::AccountId },
+		NewParticipantAdded(Vec<u8>, T::AccountId),
 		/// token minted to an account
-		MintedToAccountID { member: T::AccountId, amount: u128 },
+		MintedToAccountID(T::AccountId, u128),
+		/// 0-> created, 1-> event-is-live, 2-> event-paused, 3-> event-is-over
+		EventStateUpdated(u32),
 	}
 
 	// Errors inform users that something went wrong.
@@ -196,7 +203,8 @@ pub mod pallet {
 		/// storage and emits an event. This function must be dispatched by a signed extrinsic.
 		///	1. partner_id : Max 10 (alphanumeric)   
 		/// 2. partner_info_cid: CID( info-json )
-		#[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1,1).ref_time())]
+		#[pallet::call_index(0)]
+		#[pallet::weight(T::WeightInfo::partner_registration())]
 		pub fn partner_registration(
 			origin: OriginFor<T>,
 			partner_id: Vec<u8>,
@@ -240,10 +248,7 @@ pub mod pallet {
 			Partners::<T>::insert(&bounded_pid, (&bounded_cid, current_block));
 
 			// Emit an event that a new member has been added.
-			Self::deposit_event(Event::NewPartnerAdded {
-				id: bounded_pid.to_vec(),
-				cid: bounded_cid.to_vec(),
-			});
+			Self::deposit_event(Event::NewPartnerAdded(bounded_pid.to_vec(), bounded_cid.to_vec()));
 
 			Ok(())
 		}
@@ -251,7 +256,8 @@ pub mod pallet {
 		/// storage and emits an event. This function must be dispatched by a signed extrinsic.
 		///	1. event_type_id : Max 10 (alphanumeric)   
 		/// 2. details: CID( info-json )
-		#[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1,1).ref_time())]
+		#[pallet::call_index(1)]
+		#[pallet::weight(T::WeightInfo::adoption_event_types_creation())]
 		pub fn adoption_event_types_creation(
 			origin: OriginFor<T>,
 			event_type_id: Vec<u8>,
@@ -302,10 +308,10 @@ pub mod pallet {
 			);
 
 			// Emit an event that a new vent type has been added.
-			Self::deposit_event(Event::NewEventTypeAdded {
-				etype: bounded_event_type.to_vec(),
-				details: bounded_event_details.to_vec(),
-			});
+			Self::deposit_event(Event::NewEventTypeAdded(
+				bounded_event_type.to_vec(),
+				bounded_event_details.to_vec(),
+			));
 
 			Ok(())
 		}
@@ -319,7 +325,8 @@ pub mod pallet {
 		/// 5. partner_wallet_id: account of partner,
 		/// 6. referrer_id: Vec<u8>,  //referrer partner id
 		/// 7. details: Vec<u8>, //BoundedVec<u8, T::MaxCIDLength>,
-		#[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1,1).ref_time())]
+		#[pallet::call_index(2)]
+		#[pallet::weight(T::WeightInfo::adoption_event_creation())]
 		pub fn adoption_event_creation(
 			origin: OriginFor<T>,
 			event_id: Vec<u8>, //created by user and fed here
@@ -419,7 +426,7 @@ pub mod pallet {
 				value,
 				partner_wallet_id,
 				referrer_id: bounded_referrer_id, //referrer partner id
-				details: bounded_event_details,   //
+				details: bounded_event_details,
 				event_state: 0,
 			};
 
@@ -427,7 +434,7 @@ pub mod pallet {
 			AdoptionEventDataRecords::<T>::insert(&bounded_event_id, (&event_data, current_block));
 
 			// Emit an event that a new vent type has been added.
-			Self::deposit_event(Event::NewEventAdded { event_id: bounded_event_id.to_vec() });
+			Self::deposit_event(Event::NewEventAdded(bounded_event_id.to_vec()));
 
 			Ok(())
 		}
@@ -436,7 +443,8 @@ pub mod pallet {
 		/// storage and emits an event. This function must be dispatched by a signed extrinsic.
 		///	1. event_id : Max 10 (alphanumeric)  id of the event  
 		/// 2. participant: account id of the participant
-		#[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1,1).ref_time())]
+		#[pallet::call_index(3)]
+		#[pallet::weight(T::WeightInfo::adoption_event_participant_addition())]
 		pub fn adoption_event_participant_addition(
 			origin: OriginFor<T>,
 			participant: T::AccountId,
@@ -482,10 +490,7 @@ pub mod pallet {
 			AdoptionEventParticipants::<T>::insert(&bounded_event_id, &participant, 1);
 
 			// Emit an event that a new vent type has been added.
-			Self::deposit_event(Event::NewParticipantAdded {
-				event_id: bounded_event_id.to_vec(),
-				member: participant,
-			});
+			Self::deposit_event(Event::NewParticipantAdded(bounded_event_id.to_vec(), participant));
 			Ok(())
 		}
 
@@ -493,7 +498,8 @@ pub mod pallet {
 		/// storage and emits an event. This function must be dispatched by a signed extrinsic.
 		///	1. event_id : Max 10 (alphanumeric)  id of the event  
 		/// 2. participant: account id of the participant
-		#[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1,1).ref_time())]
+		#[pallet::call_index(4)]
+		#[pallet::weight(T::WeightInfo::mint_event_participants())]
 		pub fn mint_event_participants(
 			origin: OriginFor<T>,
 			event_id: Vec<u8>, /*created by user and fed here
@@ -542,10 +548,7 @@ pub mod pallet {
 					//update the mint status of the participant
 					AdoptionEventParticipants::<T>::mutate(&bounded_event_id, &p.0, |x| *x = 0); //set the value to 0->not-be-minted
 																			 // Emit mint amount.
-					Self::deposit_event(Event::MintedToAccountID {
-						member: p.0,
-						amount: mint_value,
-					});
+					Self::deposit_event(Event::MintedToAccountID(p.0, mint_value));
 				}
 			}
 
@@ -557,7 +560,8 @@ pub mod pallet {
 		///	1. event_id : Max 10 (alphanumeric)  id of the event  
 		/// 2. event_state: u32,  //0-> created,  1->event-is-live, 2-> event-paused,
 		/// 3->event-is-over
-		#[pallet::weight(10_000 + T::DbWeight::get().reads_writes(1,1).ref_time())]
+		#[pallet::call_index(5)]
+		#[pallet::weight(T::WeightInfo::event_set_state())]
 		pub fn event_set_state(
 			origin: OriginFor<T>,
 			event_id: Vec<u8>, //created by user and fed here
@@ -598,6 +602,9 @@ pub mod pallet {
 					y.event_state = event_state;
 				}
 			});
+
+			Self::deposit_event(Event::EventStateUpdated(event_state));
+
 			Ok(())
 		}
 	}

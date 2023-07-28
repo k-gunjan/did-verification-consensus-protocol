@@ -156,6 +156,7 @@ pub mod pallet {
 		/// Register a verifier. Takes following parameters
 		/// 1. deposit amount
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1).ref_time())]
+		#[pallet::call_index(0)]
 		pub fn register_verifier(origin: OriginFor<T>, deposit: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			// check if the verifier is already registered
@@ -199,6 +200,7 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1).ref_time())]
+		#[pallet::call_index(1)]
 		pub fn verifier_deposit(origin: OriginFor<T>, deposit: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			// check if the verifier is already registered
@@ -239,6 +241,7 @@ pub mod pallet {
 		/// Change protocol parameters
 		/// takes new parameters and updates the default value
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1).ref_time())]
+		#[pallet::call_index(2)]
 		pub fn update_protocol_parameters(
 			origin: OriginFor<T>,
 			new_parameters: ProtocolParameterValues,

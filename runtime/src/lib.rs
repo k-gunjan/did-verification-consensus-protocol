@@ -35,6 +35,7 @@ pub use pallet_adoption;
 
 ///import the did pallet.
 pub use pallet_did;
+
 ///import the pallet verification protocol
 pub use pallet_verification_protocol;
 
@@ -1173,13 +1174,14 @@ impl pallet_adoption::Config for Runtime {
 	type MinCIDLength = MinCIDLength;
 	type MaxCIDLength = MaxCIDLength;
 	type Currency = Balances;
+	type WeightInfo = pallet_adoption::weights::SubstrateWeight<Runtime>;
 }
 
 // Configure the pallet-did in pallets/did.
 impl pallet_did::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Time = Timestamp;
-	// type WeightInfo = pallet_did::weights::SubstrateWeight<Runtime>;
+	type WeightInfo = pallet_did::weights::SubstrateWeight<Runtime>;
 }
 
 // //parameters of pallet verification protocol & verifiers
@@ -1320,7 +1322,7 @@ mod benches {
 		[frame_benchmarking, BaselineBench::<Runtime>]
 		[frame_system, SystemBench::<Runtime>]
 		[pallet_babe, Babe]
-		[pallet_bags_list, VoterBagsList]
+		[pallet_bags_list, VoterList]
 		[pallet_balances, Balances]
 		[pallet_timestamp, Timestamp]
 		[pallet_collective, Council]
@@ -1343,8 +1345,8 @@ mod benches {
 		[pallet_contracts, Contracts]
 		[pallet_adoption, AdoptionModule]
 		[pallet_did, DidModule]
-		[pallet_verification_protocol, VerificationProtocol]
-		[verifiers, Verifiers]
+		// [pallet_verification_protocol, VerificationProtocol]
+		// [verifiers, Verifiers]
 	);
 }
 
@@ -1742,19 +1744,64 @@ impl_runtime_apis! {
 			// Trying to add benchmarks directly to the Session Pallet caused cyclic dependency
 			// issues. To get around that, we separated the Session benchmarks into its own crate,
 			// which is why we need these two lines below.
-			use pallet_session_benchmarking::Pallet as SessionBench;
-			use pallet_offences_benchmarking::Pallet as OffencesBench;
-			use pallet_election_provider_support_benchmarking::Pallet as EPSBench;
-			use frame_benchmarking::{baseline, Benchmarking, BenchmarkList};
+			// use pallet_session_benchmarking::Pallet as SessionBench;
+			// use pallet_offences_benchmarking::Pallet as OffencesBench;
+			// use pallet_election_provider_support_benchmarking::Pallet as EPSBench;
+			use frame_benchmarking::{list_benchmark, Benchmarking, BenchmarkList};
 			use frame_support::traits::StorageInfoTrait;
 			use frame_system_benchmarking::Pallet as SystemBench;
-			use baseline::Pallet as BaselineBench;
-			use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
+			// use baseline::Pallet as BaselineBench;
+			// use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
 
 			let mut list = Vec::<BenchmarkList>::new();
-			list_benchmarks!(list, extra);
+			// list_benchmarks!(list, extra);
 
-			let storage_info = AllPalletsWithSystem::storage_info();
+			list_benchmark!(list, extra, frame_system, SystemBench::<Runtime>);
+			// list_benchmark!(list, extra, pallet_balances, Balances);
+			// list_benchmark!(list, extra, pallet_timestamp, Timestamp);
+			// list_benchmark!(list, extra, pallet_multisig, Multisig);
+			list_benchmark!(list, extra, pallet_did, DidModule);
+			list_benchmark!(list, extra, pallet_adoption, AdoptionModule);
+
+
+			// let storage_info = AllPalletsWithSystem::storage_info();
+
+			macro_rules! storage_info {
+				($($pallet: ty),+) => {
+					[$(<$pallet>::storage_info()),+].concat()
+				}
+			}
+
+			let storage_info = storage_info!(
+				System,
+				Timestamp,
+				Balances,
+				Multisig,
+				Session,
+				Grandpa,
+				Authorship,
+				TransactionPayment,
+				Utility,
+				Sudo,
+				Democracy,
+				Council,
+				TechnicalCommittee,
+				TechnicalMembership,
+				Scheduler,
+				AuthorityDiscovery,
+				Historical,
+				ImOnline,
+				Babe,
+				Staking,
+				VoterList,
+				Preimage,
+				Mmr,
+				ElectionProviderMultiPhase,
+				Offences,
+				Treasury,
+				Elections,
+				NominationPools
+			);
 
 			(list, storage_info)
 		}
@@ -1762,26 +1809,26 @@ impl_runtime_apis! {
 		fn dispatch_benchmark(
 			config: frame_benchmarking::BenchmarkConfig
 		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, sp_runtime::RuntimeString> {
-			use frame_benchmarking::{baseline, Benchmarking, BenchmarkBatch, TrackedStorageKey};
+			use frame_benchmarking::{add_benchmark, Benchmarking, BenchmarkBatch, TrackedStorageKey};
 
 			// Trying to add benchmarks directly to the Session Pallet caused cyclic dependency
 			// issues. To get around that, we separated the Session benchmarks into its own crate,
 			// which is why we need these two lines below.
-			use pallet_session_benchmarking::Pallet as SessionBench;
-			use pallet_offences_benchmarking::Pallet as OffencesBench;
-			use pallet_election_provider_support_benchmarking::Pallet as EPSBench;
+			// use pallet_session_benchmarking::Pallet as SessionBench;
+			// use pallet_offences_benchmarking::Pallet as OffencesBench;
+			// use pallet_election_provider_support_benchmarking::Pallet as EPSBench;
 
 			use frame_system_benchmarking::Pallet as SystemBench;
-			use baseline::Pallet as BaselineBench;
-			use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
+			// use baseline::Pallet as BaselineBench;
+			// use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
 
-			impl pallet_session_benchmarking::Config for Runtime {}
-			impl pallet_offences_benchmarking::Config for Runtime {}
-			impl pallet_election_provider_support_benchmarking::Config for Runtime {}
+			// impl pallet_session_benchmarking::Config for Runtime {}
+			// impl pallet_offences_benchmarking::Config for Runtime {}
+			// impl pallet_election_provider_support_benchmarking::Config for Runtime {}
 
 			impl frame_system_benchmarking::Config for Runtime {}
-			impl baseline::Config for Runtime {}
-			impl pallet_nomination_pools_benchmarking::Config for Runtime {}
+			// impl baseline::Config for Runtime {}
+			// impl pallet_nomination_pools_benchmarking::Config for Runtime {}
 
 			use frame_support::traits::WhitelistedStorageKeys;
 			let whitelist: Vec<TrackedStorageKey> = AllPalletsWithSystem::whitelisted_storage_keys();
@@ -1794,7 +1841,23 @@ impl_runtime_apis! {
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);
-			add_benchmarks!(params, batches);
+			// add_benchmarks!(params, batches);
+
+			add_benchmark!(params, batches, frame_system, SystemBench::<Runtime>);
+			add_benchmark!(params, batches, pallet_balances, Balances);
+			add_benchmark!(params, batches, pallet_timestamp, Timestamp);
+			add_benchmark!(params, batches, pallet_multisig, Multisig);
+			add_benchmark!(params, batches, pallet_collective, Council);
+			add_benchmark!(params, batches, pallet_democracy, Democracy);
+			add_benchmark!(params, batches, pallet_scheduler, Scheduler);
+			add_benchmark!(params, batches, pallet_babe, Babe);
+			add_benchmark!(params, batches, pallet_staking, Staking);
+			add_benchmark!(params, batches, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
+			add_benchmark!(params, batches, pallet_grandpa, Grandpa);
+			add_benchmark!(params, batches, pallet_im_online, ImOnline);
+
+			add_benchmark!(params, batches, pallet_did, DidModule);
+			add_benchmark!(params, batches, pallet_adoption, AdoptionModule);
 
 			Ok(batches)
 		}
