@@ -5,7 +5,10 @@ pub use verifiers::types::{Increment, VerifierUpdateData};
 
 use frame_support::{pallet_prelude::ConstU32, BoundedVec};
 
-use core::cmp::{Eq, Ordering, PartialEq};
+use core::{
+	cmp::{Eq, Ordering, PartialEq},
+	marker::PhantomData,
+};
 use scale_info::TypeInfo;
 use sp_core::H256;
 use sp_runtime::{
@@ -510,10 +513,55 @@ impl Default for ProtocolParameterValues {
 
 pub type Country = BoundedVec<u8, ConstU32<100>>;
 pub type IdIssuer = BoundedVec<u8, ConstU32<150>>;
+pub type IdName = BoundedVec<u8, ConstU32<100>>;
 
-#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug, Ord, Eq, PartialOrd)]
-pub struct IdType {
-	name: BoundedVec<u8, ConstU32<100>>,
-	issuer: IdIssuer,
+pub trait IdDocument {
+	type IdType;
+	type Error;
+
+	fn build(name: Vec<u8>, issuer: Vec<u8>, country: Vec<u8>)
+		-> Result<Self::IdType, Self::Error>;
+}
+
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Ord, Eq, PartialOrd)]
+#[scale_info(skip_type_params(T))]
+pub struct IdType<T: Config> {
+	pub name: IdName,
+	pub issuer: IdIssuer,
 	pub country: Country,
+	_marker: PhantomData<T>,
+}
+use sp_std::fmt;
+impl<T: Config> fmt::Debug for IdType<T> {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		write!(
+			f,
+			"IdType {{ name: {:?}, issuer: {:?}, country: {:?} }}",
+			self.name, self.issuer, self.country
+		)
+	}
+}
+
+use crate::Error;
+impl<T: Config> IdDocument for IdType<T> {
+	type IdType = IdType<T>;
+	type Error = Error<T>;
+
+	fn build(
+		name: Vec<u8>,
+		issuer: Vec<u8>,
+		country: Vec<u8>,
+	) -> Result<Self::IdType, Self::Error> {
+		let bounded_name: IdName = name.try_into().map_err(|_| Error::<T>::InvalidIdName)?;
+		let bounded_issuer: IdIssuer =
+			issuer.try_into().map_err(|_| Error::<T>::InvalidIdIssuer)?;
+		let bounded_country: Country =
+			country.try_into().map_err(|_| Error::<T>::InvalidCountry)?;
+		Ok(Self {
+			name: bounded_name,
+			issuer: bounded_issuer,
+			country: bounded_country,
+			_marker: Default::default(),
+		})
+	}
 }
