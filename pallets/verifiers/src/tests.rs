@@ -1,23 +1,47 @@
-use crate::{mock::*, Error};
+use crate::{mock::*, types::*, Error};
 use frame_support::{assert_noop, assert_ok};
 
 #[test]
-fn it_works_for_default_value() {
+fn test_register_verifier() {
 	new_test_ext().execute_with(|| {
-		// Dispatch a signed extrinsic.
-		assert_ok!(TemplateModule::do_something(RuntimeOrigin::signed(1), 42));
-		// Read pallet storage and assert an expected result.
-		assert_eq!(TemplateModule::something(), Some(42));
+		let account = account_key("//Alice");
+		let deposit = 100_u128 * 10_u128.pow(12);
+
+		// Register a verifier
+		assert_ok!(Verifiers::register_verifier(RuntimeOrigin::signed(account), deposit));
+
+		// assert the verifier exists
+		assert!(Verifiers::verifiers(account).is_some())
 	});
 }
 
 #[test]
-fn correct_error_for_none_value() {
+fn correct_error_on_re_register_verifier() {
 	new_test_ext().execute_with(|| {
-		// Ensure the expected error is thrown when no value is present.
+		let account = account_key("//Alice");
+		let deposit = 100_u128 * 10_u128.pow(12);
+
+		// Register a verifier
+		assert_ok!(Verifiers::register_verifier(RuntimeOrigin::signed(account), deposit));
+
+		// error VerifierAlreadyRegistered upon attempt to re-register
 		assert_noop!(
-			TemplateModule::cause_error(RuntimeOrigin::signed(1)),
-			Error::<Test>::NoneValue
+			Verifiers::register_verifier(RuntimeOrigin::signed(account), deposit),
+			Error::<Test>::VerifierAlreadyRegistered
+		);
+	});
+}
+
+#[test]
+fn correct_error_on_zero_deposit_register_verifier() {
+	new_test_ext().execute_with(|| {
+		let account = account_key("//Alice");
+		let deposit = 0u128;
+
+		// error InvalidDepositeAmount upon attempt to re-register with zero deposit
+		assert_noop!(
+			Verifiers::register_verifier(RuntimeOrigin::signed(account), deposit),
+			Error::<Test>::InvalidDepositeAmount
 		);
 	});
 }

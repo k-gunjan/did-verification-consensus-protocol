@@ -18,7 +18,11 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
 	use frame_support::{
-		inherent::Vec, log, pallet_prelude::*, traits::Currency, BoundedVec, PalletId,
+		inherent::Vec,
+		log,
+		pallet_prelude::{OptionQuery, ValueQuery, *},
+		traits::Currency,
+		BoundedVec, PalletId,
 	};
 	use frame_system::pallet_prelude::*;
 	use scale_info::prelude::vec;
@@ -27,21 +31,17 @@ pub mod pallet {
 
 	use crate::{types::*, verification_process::*};
 
-	use sp_core::H256;
-
-	// use core::mem::discriminant;
-	// use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
-	// use sp_std::collections::btree_map::BTreeMap;
+	use sp_core::{ConstU32, H256};
 
 	use pallet_did::pallet::DidProvider;
 	use verifiers::{pallet::VerifiersProvider, types::VerifierUpdateData};
+
+	type IdDocumentOf<T> = <<T as Config>::IdDocument as IdDocument>::IdType;
+
 	#[pallet::pallet]
 	#[pallet::without_storage_info]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
-
-	// type BalanceOf<T> =
-	// 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
@@ -68,12 +68,32 @@ pub mod pallet {
 
 		/// pallet did API
 		type DidProvider: DidProvider<AccountId = Self::AccountId>;
+
+		/// IdDocument
+		type IdDocument: IdDocument<IdType = IdType<Self>, Error = Error<Self>>;
 	}
+
+	// Store the list of whitelisted countries
+	#[pallet::storage]
+	#[pallet::getter(fn whitelisted_countries)]
+	pub(super) type WhitelistedCountries<T> =
+		StorageValue<_, BoundedVec<Country, ConstU32<200>>, ValueQuery>;
+
+	// Stores the whitelisted IDs of countries
+	#[pallet::storage]
+	#[pallet::getter(fn whitelisted_id_types)]
+	pub(super) type WhitelistedIdTypes<T: Config> = StorageMap<
+		_,
+		Blake2_128Concat,
+		Country,
+		BoundedVec<IdDocumentOf<T>, ConstU32<10>>,
+		ValueQuery,
+	>;
 
 	// Store the protocol parameters
 	#[pallet::storage]
 	#[pallet::getter(fn protocol_parameters)]
-	pub type ProtocolParameters<T> = StorageValue<_, ProtocolParameterValues, ValueQuery>;
+	pub(super) type ProtocolParameters<T> = StorageValue<_, ProtocolParameterValues, ValueQuery>;
 
 	/// Stores the did creation records
 	#[pallet::storage]
@@ -128,6 +148,10 @@ pub mod pallet {
 		/// Verification completed event
 		/// parameters. [ consumer_accountId, DidCreationStatus]
 		DidCreationResult(T::AccountId, DidCreationStatus),
+		/// parameters [IdType]
+		IdTypeWhitelisted(IdDocumentOf<T>),
+		/// parameters [IdType]
+		IdTypeRemoved(IdDocumentOf<T>),
 	}
 
 	// Errors inform users that something went wrong.
@@ -170,6 +194,13 @@ pub mod pallet {
 		AlreadyCreated4Account,
 		//Consumer hash already registered for some DID
 		HashAlreadyRegistered,
+		// IdType not defined
+		IdTypeNotDefined,
+		// Storage update failed
+		UpdateFailed,
+		InvalidIdName,
+		InvalidIdIssuer,
+		InvalidCountry,
 	}
 
 	#[pallet::hooks]
@@ -289,6 +320,69 @@ pub mod pallet {
 				secret,
 			)?;
 			Self::deposit_event(Event::Revealed(_who, consumer_account_id));
+			Ok(())
+		}
+
+		/// Inster a new ID Type. It takes new IdType
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1).ref_time())]
+		#[pallet::call_index(5)]
+		pub fn whitelist_id_type(origin: OriginFor<T>, id_type: IdDocumentOf<T>) -> DispatchResult {
+			let _who = ensure_signed(origin)?;
+			let IdType { country, .. } = &id_type;
+			let countries = Self::whitelisted_countries();
+			if !countries.contains(&country) {
+				WhitelistedCountries::<T>::try_append(&country)
+					.map_err(|_| Error::<T>::UpdateFailed)?;
+			}
+
+			let whitelisted_id_types = Self::whitelisted_id_types(country);
+			if !whitelisted_id_types.contains(&id_type) {
+				WhitelistedIdTypes::<T>::try_append(country, &id_type)
+					.map_err(|_| Error::<T>::UpdateFailed)?;
+			}
+
+			Self::deposit_event(Event::IdTypeWhitelisted(id_type));
+			Ok(())
+		}
+
+		/// Removes a whitelisted ID Type. It takes new IdType. After removing, if no entry
+		/// left for the corresponding county, country is removed from the country_whitelist
+		/// also.
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1).ref_time())]
+		#[pallet::call_index(6)]
+		pub fn remove_id_type(origin: OriginFor<T>, id_type: IdDocumentOf<T>) -> DispatchResult {
+			let _who = ensure_signed(origin)?;
+			let IdType { country, .. } = &id_type;
+
+			let whitelisted_id_types = Self::whitelisted_id_types(country);
+			ensure!(whitelisted_id_types.contains(&id_type), Error::<T>::IdTypeNotDefined);
+
+			WhitelistedIdTypes::<T>::mutate(country, |whitelist| {
+				*whitelist = whitelist
+					.iter()
+					.cloned()
+					.filter(|x| *x != id_type)
+					.collect::<Vec<_>>()
+					.try_into()
+					.expect("Error in updating whitelisted_id_types. This should not happen!!");
+			});
+
+			// remove the country from the list as no id_type for this country exists
+			if whitelisted_id_types.len() == 1 {
+				WhitelistedCountries::<T>::mutate(|vc| {
+					*vc = vc
+						.iter()
+						.cloned()
+						.filter(|x| x != country)
+						.collect::<Vec<Country>>()
+						.try_into()
+						.expect(
+							"Error in updating whitelisted_countries. This should not happen!!",
+						);
+				});
+			}
+
+			Self::deposit_event(Event::IdTypeRemoved(id_type));
 			Ok(())
 		}
 	}

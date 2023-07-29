@@ -66,6 +66,7 @@ use frame_election_provider_support::{
 use pallet_grandpa::{
 	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
+use pallet_verification_protocol::types::IdType;
 use sp_api::impl_runtime_apis;
 // use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
@@ -1195,11 +1196,10 @@ impl pallet_verification_protocol::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type PalletId = TreasuryPalletId;
 	type Currency = Balances;
-	// type Balance = u128;
-
 	type MaxLengthListOfDocuments = MaxLengthListOfDocuments;
 	type VerifiersProvider = Verifiers;
 	type DidProvider = DidModule;
+	type IdDocument = IdType<Self>;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
