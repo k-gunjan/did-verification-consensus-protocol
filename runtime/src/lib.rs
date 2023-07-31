@@ -78,7 +78,7 @@ use sp_runtime::{
 	impl_opaque_keys,
 	traits::{
 		self, BlakeTwo256, Block as BlockT, Bounded, IdentifyAccount, NumberFor, OpaqueKeys,
-		SaturatedConversion, StaticLookup, Verify,
+		SaturatedConversion, StaticLookup, Verify, Zero,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, FixedPointNumber, FixedU128, MultiSignature, Perbill, Percent, Permill,
@@ -315,8 +315,6 @@ impl frame_system::Config for Runtime {
 	type OnSetCode = ();
 	type MaxConsumers = ConstU32<16>;
 }
-
-impl pallet_insecure_randomness_collective_flip::Config for Runtime {}
 
 parameter_types! {
 	pub const UncleGenerations: BlockNumber = 5;
@@ -998,9 +996,19 @@ parameter_types! {
 	pub Schedule: pallet_contracts::Schedule<Runtime> = Default::default();
 }
 
+/// Deprecated functionality for `pallet-contracts`, but since some `Randomness` config type
+/// is required we provide this dummy type.
+
+pub struct DummyDeprecatedRandomness;
+impl Randomness<Hash, BlockNumber> for DummyDeprecatedRandomness {
+	fn random(_: &[u8]) -> (Hash, BlockNumber) {
+		(Default::default(), Zero::zero())
+	}
+}
+
 impl pallet_contracts::Config for Runtime {
 	type Time = Timestamp;
-	type Randomness = RandomnessCollectiveFlip;
+	type Randomness = DummyDeprecatedRandomness;
 	type Currency = Balances;
 	type RuntimeEvent = RuntimeEvent;
 	type RuntimeCall = RuntimeCall;
@@ -1213,7 +1221,6 @@ construct_runtime!(
 		System: frame_system,
 		Utility: pallet_utility,
 		Babe: pallet_babe,
-		RandomnessCollectiveFlip: pallet_insecure_randomness_collective_flip,
 		Timestamp: pallet_timestamp,
 		// Authorship must be before session in order to note author in the correct session and era
 		// for im-online and staking.
