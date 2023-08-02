@@ -837,18 +837,7 @@ pub mod pallet {
 					consumer_id.clone(),
 					did_creation_status,
 				));
-				VerificationRequests::<T>::try_mutate(
-					consumer_id,
-					|v: &mut Option<VerificationRequest<T>>| -> Result<(), Error<T>> {
-						let mut vr = v.as_mut().ok_or(Error::<T>::NoDidReqFound)?;
-						vr.state.eval_vp_result = Some(result.clone());
-						vr.state.eval_vp_state = Some(EvalVpState::Done);
-						vr.did_creation_status = did_creation_status;
-						// update the stage. this is the last stage
-						vr.state.stage = VerificationStages::Done;
-						Ok(())
-					},
-				)?;
+
 				if let Some(completed_request) = VerificationRequests::<T>::take(consumer_id) {
 					let final_result = VerificationResult::<T>::from_completed_request(
 						completed_request,
