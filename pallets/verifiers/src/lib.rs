@@ -32,11 +32,13 @@ pub mod pallet {
 
 	use frame_support::sp_runtime::SaturatedConversion;
 	use frame_system::pallet_prelude::*;
+	use sp_io::{hashing::blake2_256, offchain::random_seed};
 	use sp_runtime::{
 		traits::{Bounded, CheckedAdd, CheckedMul, CheckedSub, Zero},
 		ArithmeticError, FixedU128,
 	};
-	use sp_std::vec::Vec;
+	use sp_std::{cmp::Ordering, vec::Vec};
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
@@ -123,26 +125,58 @@ pub mod pallet {
 		/// At block finalization
 		fn on_finalize(_now: BlockNumberFor<T>) {
 			let last_verifiers = Self::eligible_verifiers().to_vec();
+
+			// Retrieve all verifiers in an active state
 			let mut verifiers: Vec<Verifier<T::AccountId, T::BlockNumber, BalanceOf<T>>> =
 				Verifiers::<T>::iter_values()
 					.filter(|v| v.state == VerifierState::Active)
 					.map(|v| v)
 					.collect();
-			// sort by accuracy of the verifiers
-			verifiers.sort_by_key(|k| k.accuracy());
+
+			// Sort verifiers based on a custom randomization method
+			verifiers.sort_by(|a, b| {
+				// First, compare based on accuracy scores (ascending order)
+				let cmp_accuracy = a.accuracy().cmp(&b.accuracy());
+
+				if cmp_accuracy != Ordering::Equal {
+					// If accuracy scores are different, use the accuracy comparison as the primary
+					// key
+					cmp_accuracy
+				} else {
+					// If accuracy scores are the same, introduce randomization
+					// by using a random seed and the account IDs as secondary keys
+					let random_seed: [u8; 32] = random_seed();
+
+					// Compress the 32-byte array into a single u64 using blake2_256 hash function
+					let random_seed_u64: u64 = blake2_256(&random_seed)
+						.as_ref()
+						.iter()
+						.fold(0, |acc, &x| (acc << 8) | (x as u64));
+
+					let a_seed = (random_seed_u64, &a.account_id);
+					let b_seed = (random_seed_u64, &b.account_id);
+
+					a_seed.cmp(&b_seed)
+				}
+			});
+
+			// Create a new list of account IDs based on the sorted verifiers
 			let new_verifiers: Vec<T::AccountId> =
 				verifiers.iter().map(|v| v.account_id.clone()).collect();
 
 			if last_verifiers != new_verifiers {
 				if new_verifiers.len() as u32 > T::MaxEligibleVerifiers::get() {
 					log::warn!(
-						"next verifiers list larger than {}, truncating",
+						"Next verifiers list larger than {}, truncating",
 						T::MaxEligibleVerifiers::get(),
 					);
 				}
+
+				// Truncate the list to fit within the maximum eligible verifiers limit
 				let bounded =
 					<BoundedVec<_, T::MaxEligibleVerifiers>>::truncate_from(new_verifiers);
 
+				// Store the bounded list of eligible verifiers in storage
 				EligibleVerifiers::<T>::put(bounded);
 			}
 		}
