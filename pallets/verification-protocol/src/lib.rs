@@ -352,13 +352,9 @@ pub mod pallet {
 		#[pallet::call_index(6)]
 		pub fn remove_id_type(origin: OriginFor<T>, id_type: IdDocumentOf<T>) -> DispatchResult {
 			let _who = ensure_signed(origin)?;
-			let (country, count) = Self::validate_id_type(id_type)?;
-			// let IdType { country, .. } = &id_type;
+			let (country, count) = Self::validate_id_type(&id_type)?;
 
-			// let whitelisted_id_types = Self::whitelisted_id_types(country);
-			// ensure!(whitelisted_id_types.contains(&id_type), Error::<T>::IdTypeNotDefined);
-
-			WhitelistedIdTypes::<T>::mutate(country, |whitelist| {
+			WhitelistedIdTypes::<T>::mutate(&country, |whitelist| {
 				*whitelist = whitelist
 					.iter()
 					.cloned()
@@ -661,7 +657,7 @@ pub mod pallet {
 									consumer_details.id_issuing_authority.into(),
 									consumer_details.country.into(),
 								)?;
-								let _ = Self::validate_id_type(id_type)?;
+								let _ = Self::validate_id_type(&id_type)?;
 							}
 							v.revealed_data = Some((current_block, reveald_parameter));
 							return Ok(())
@@ -1061,7 +1057,7 @@ pub mod pallet {
 		// checkes if id_type is whitelisted and returns the Country and total number of whitelisted
 		// ID Documents for that country
 		pub(crate) fn validate_id_type(
-			id_type: IdDocumentOf<T>,
+			id_type: &IdDocumentOf<T>,
 		) -> Result<(Country, usize), Error<T>> {
 			let IdType { country, .. } = &id_type;
 			let whitelisted_id_types = Self::whitelisted_id_types(country);
