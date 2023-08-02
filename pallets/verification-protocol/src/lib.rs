@@ -799,7 +799,8 @@ pub mod pallet {
 			for consumer_id in list_verification_req {
 				// list of all the verification data submitted for a particular request
 				let revealed_data_list: Vec<VerificationProcessData<T>> =
-					VerificationProcessRecords::<T>::iter_prefix_values(consumer_id.clone())
+					VerificationProcessRecords::<T>::drain_prefix(consumer_id.clone())
+						.map(|(_, v)| v)
 						.collect();
 
 				let (result, incentive_data) = VerificationProcessData::eval_incentive(
