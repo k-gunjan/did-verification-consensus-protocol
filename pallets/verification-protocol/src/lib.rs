@@ -652,6 +652,16 @@ pub mod pallet {
 
 							let reveald_parameter =
 								Self::parse_clear_parameters(&clear_parameters)?;
+							if let RevealedParameters::Accept(consumer_details) =
+								reveald_parameter.clone()
+							{
+								let id_type = IdDocumentOf::<T>::build(
+									consumer_details.type_of_id.into(),
+									consumer_details.id_issuing_authority.into(),
+									consumer_details.country.into(),
+								)?;
+								let _ = Self::validate_id_type(id_type)?;
+							}
 							v.revealed_data = Some((current_block, reveald_parameter));
 							return Ok(())
 						} else {
@@ -1046,6 +1056,12 @@ pub mod pallet {
 				ConsumerHashes::<T>::insert(&hash, (consumer_id.clone(), current_block));
 			}
 			Ok(())
+		}
+		pub(crate) fn validate_id_type(id_type: IdDocumentOf<T>) -> Result<Country, Error<T>> {
+			let IdType { country, .. } = &id_type;
+			let whitelisted_id_types = Self::whitelisted_id_types(country);
+			ensure!(whitelisted_id_types.contains(&id_type), Error::<T>::IdTypeNotDefined);
+			Ok(country.to_owned())
 		}
 	}
 }
