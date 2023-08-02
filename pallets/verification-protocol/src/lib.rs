@@ -32,6 +32,7 @@ pub mod pallet {
 	use crate::{types::*, verification_process::*};
 
 	use sp_core::{ConstU32, H256};
+	use sp_std::borrow::ToOwned;
 
 	use pallet_did::pallet::DidProvider;
 	use verifiers::{pallet::VerifiersProvider, types::VerifierUpdateData};
@@ -106,6 +107,12 @@ pub mod pallet {
 	#[pallet::getter(fn verification_requests)]
 	pub(super) type VerificationRequests<T: Config> =
 		StorageMap<_, Blake2_128Concat, T::AccountId, VerificationRequest<T>>;
+
+	/// Stores the verification results
+	#[pallet::storage]
+	#[pallet::getter(fn verification_results)]
+	pub(super) type VerificationResults<T: Config> =
+		StorageMap<_, Blake2_128Concat, T::AccountId, VerificationResult<T>>;
 
 	// Verificatoin parameters submitted by verifiers
 	// (consumer_account_id, verifier_account_id) -> submitted_parameters
@@ -842,6 +849,15 @@ pub mod pallet {
 						Ok(())
 					},
 				)?;
+				if let Some(completed_request) = VerificationRequests::<T>::take(consumer_id) {
+					let final_result = VerificationResult::<T>::from_completed_request(
+						completed_request,
+						result.clone(),
+						did_creation_status,
+						current_block,
+					);
+					VerificationResults::<T>::insert(consumer_id, final_result);
+				}
 
 				combined_result.extend(incentive_data);
 			}
