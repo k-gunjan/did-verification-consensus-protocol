@@ -20,24 +20,21 @@ mod benchmarking;
 
 #[frame_support::pallet]
 pub mod pallet {
-
 	use crate::types::*;
 	use frame_support::{
-		// inherent::Vec,
 		pallet_prelude::*,
-		sp_runtime::traits::AccountIdConversion,
+		sp_runtime::{traits::AccountIdConversion, FixedI64},
 		traits::{Currency, ExistenceRequirement},
 		PalletId,
 	};
 
 	use frame_support::sp_runtime::SaturatedConversion;
 	use frame_system::pallet_prelude::*;
-	use sp_io::{hashing::blake2_256, offchain::random_seed};
 	use sp_runtime::{
 		traits::{Bounded, CheckedAdd, CheckedMul, CheckedSub, Zero},
 		ArithmeticError, FixedU128,
 	};
-	use sp_std::{cmp::Ordering, vec::Vec};
+	use sp_std::vec::Vec;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -133,34 +130,16 @@ pub mod pallet {
 					.map(|v| v)
 					.collect();
 
-			// Sort verifiers based on a custom randomization method
-			verifiers.sort_by(|a, b| {
-				// First, compare based on accuracy scores (ascending order)
-				let cmp_accuracy = a.accuracy().cmp(&b.accuracy());
+			// Create a random seed using the verifiers' accuracy scores
+			let accuracy_scores: Vec<(FixedI64, usize)> = verifiers
+				.iter()
+				.map(|v| (v.accuracy(), verifiers.iter().position(|x| x == v).unwrap()))
+				.collect();
 
-				if cmp_accuracy != Ordering::Equal {
-					// If accuracy scores are different, use the accuracy comparison as the primary
-					// key
-					cmp_accuracy
-				} else {
-					// If accuracy scores are the same, introduce randomization
-					// by using a random seed and the account IDs as secondary keys
-					let random_seed: [u8; 32] = random_seed();
+			// Shuffle verifiers using the accuracy scores as the random seed
+			Self::shuffle_verifiers(&mut verifiers, &accuracy_scores);
 
-					// Compress the 32-byte array into a single u64 using blake2_256 hash function
-					let random_seed_u64: u64 = blake2_256(&random_seed)
-						.as_ref()
-						.iter()
-						.fold(0, |acc, &x| (acc << 8) | (x as u64));
-
-					let a_seed = (random_seed_u64, &a.account_id);
-					let b_seed = (random_seed_u64, &b.account_id);
-
-					a_seed.cmp(&b_seed)
-				}
-			});
-
-			// Create a new list of account IDs based on the sorted verifiers
+			// Create a new list of account IDs based on the shuffled verifiers
 			let new_verifiers: Vec<T::AccountId> =
 				verifiers.iter().map(|v| v.account_id.clone()).collect();
 
@@ -285,6 +264,25 @@ pub mod pallet {
 
 			Self::deposit_event(Event::ParametersUpdated(new_parameters));
 			Ok(())
+		}
+	}
+
+	impl<T: Config> Pallet<T> {
+		/// Shuffles a vector using the accuracy scores as the random seed.
+		fn shuffle_verifiers(
+			verifiers: &mut Vec<Verifier<T::AccountId, T::BlockNumber, BalanceOf<T>>>,
+			accuracy_scores: &[(FixedI64, usize)],
+		) {
+			let mut random_seed = accuracy_scores.to_vec();
+
+			// Fisher-Yates shuffle using the accuracy scores as the random seed
+			let mut i = verifiers.len();
+			while i > 1 {
+				i -= 1;
+				let j = random_seed[i].1 % (i + 1);
+				random_seed.swap(i, j);
+				verifiers.swap(i, j);
+			}
 		}
 	}
 
