@@ -32,6 +32,7 @@ pub mod pallet {
 	use crate::{types::*, verification_process::*};
 
 	use sp_core::{ConstU32, H256};
+	use sp_std::borrow::ToOwned;
 
 	use pallet_did::pallet::DidProvider;
 	use verifiers::{pallet::VerifiersProvider, types::VerifierUpdateData};
@@ -106,6 +107,12 @@ pub mod pallet {
 	#[pallet::getter(fn verification_requests)]
 	pub(super) type VerificationRequests<T: Config> =
 		StorageMap<_, Blake2_128Concat, T::AccountId, VerificationRequest<T>>;
+
+	/// Stores the verification results
+	#[pallet::storage]
+	#[pallet::getter(fn verification_results)]
+	pub(super) type VerificationResults<T: Config> =
+		StorageMap<_, Blake2_128Concat, T::AccountId, VerificationResult<T>>;
 
 	// Verificatoin parameters submitted by verifiers
 	// (consumer_account_id, verifier_account_id) -> submitted_parameters
@@ -352,12 +359,9 @@ pub mod pallet {
 		#[pallet::call_index(6)]
 		pub fn remove_id_type(origin: OriginFor<T>, id_type: IdDocumentOf<T>) -> DispatchResult {
 			let _who = ensure_signed(origin)?;
-			let IdType { country, .. } = &id_type;
+			let (country, count) = Self::validate_id_type(&id_type)?;
 
-			let whitelisted_id_types = Self::whitelisted_id_types(country);
-			ensure!(whitelisted_id_types.contains(&id_type), Error::<T>::IdTypeNotDefined);
-
-			WhitelistedIdTypes::<T>::mutate(country, |whitelist| {
+			WhitelistedIdTypes::<T>::mutate(&country, |whitelist| {
 				*whitelist = whitelist
 					.iter()
 					.cloned()
@@ -368,12 +372,12 @@ pub mod pallet {
 			});
 
 			// remove the country from the list as no id_type for this country exists
-			if whitelisted_id_types.len() == 1 {
+			if count == 1 {
 				WhitelistedCountries::<T>::mutate(|vc| {
 					*vc = vc
 						.iter()
 						.cloned()
-						.filter(|x| x != country)
+						.filter(|x| *x != country)
 						.collect::<Vec<Country>>()
 						.try_into()
 						.expect(
@@ -652,6 +656,16 @@ pub mod pallet {
 
 							let reveald_parameter =
 								Self::parse_clear_parameters(&clear_parameters)?;
+							if let RevealedParameters::Accept(consumer_details) =
+								reveald_parameter.clone()
+							{
+								let id_type = IdDocumentOf::<T>::build(
+									consumer_details.type_of_id.into(),
+									consumer_details.id_issuing_authority.into(),
+									consumer_details.country.into(),
+								)?;
+								let _ = Self::validate_id_type(&id_type)?;
+							}
 							v.revealed_data = Some((current_block, reveald_parameter));
 							return Ok(())
 						} else {
@@ -785,7 +799,8 @@ pub mod pallet {
 			for consumer_id in list_verification_req {
 				// list of all the verification data submitted for a particular request
 				let revealed_data_list: Vec<VerificationProcessData<T>> =
-					VerificationProcessRecords::<T>::iter_prefix_values(consumer_id.clone())
+					VerificationProcessRecords::<T>::drain_prefix(consumer_id.clone())
+						.map(|(_, v)| v)
 						.collect();
 
 				let (result, incentive_data) = VerificationProcessData::eval_incentive(
@@ -823,18 +838,16 @@ pub mod pallet {
 					consumer_id.clone(),
 					did_creation_status,
 				));
-				VerificationRequests::<T>::try_mutate(
-					consumer_id,
-					|v: &mut Option<VerificationRequest<T>>| -> Result<(), Error<T>> {
-						let mut vr = v.as_mut().ok_or(Error::<T>::NoDidReqFound)?;
-						vr.state.eval_vp_result = Some(result.clone());
-						vr.state.eval_vp_state = Some(EvalVpState::Done);
-						vr.did_creation_status = did_creation_status;
-						// update the stage. this is the last stage
-						vr.state.stage = VerificationStages::Done;
-						Ok(())
-					},
-				)?;
+
+				if let Some(completed_request) = VerificationRequests::<T>::take(consumer_id) {
+					let final_result = VerificationResult::<T>::from_completed_request(
+						completed_request,
+						result.clone(),
+						did_creation_status,
+						current_block,
+					);
+					VerificationResults::<T>::insert(consumer_id, final_result);
+				}
 
 				combined_result.extend(incentive_data);
 			}
@@ -1046,6 +1059,16 @@ pub mod pallet {
 				ConsumerHashes::<T>::insert(&hash, (consumer_id.clone(), current_block));
 			}
 			Ok(())
+		}
+		// checkes if id_type is whitelisted and returns the Country and total number of whitelisted
+		// ID Documents for that country
+		pub(crate) fn validate_id_type(
+			id_type: &IdDocumentOf<T>,
+		) -> Result<(Country, usize), Error<T>> {
+			let IdType { country, .. } = &id_type;
+			let whitelisted_id_types = Self::whitelisted_id_types(country);
+			ensure!(whitelisted_id_types.contains(&id_type), Error::<T>::IdTypeNotDefined);
+			Ok((country.to_owned(), whitelisted_id_types.len()))
 		}
 	}
 }
