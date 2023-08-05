@@ -4,6 +4,7 @@
 /// Learn more about FRAME and the core library of Substrate FRAME pallets:
 /// <https://docs.substrate.io/reference/frame-pallets/>
 pub use pallet::*;
+pub mod invalidate;
 #[cfg(test)]
 mod mock;
 pub mod types;
@@ -20,7 +21,7 @@ pub mod pallet {
 	use frame_support::{
 		inherent::Vec,
 		log,
-		pallet_prelude::{OptionQuery, ValueQuery, *},
+		pallet_prelude::{DispatchResult, OptionQuery, ValueQuery, *},
 		traits::Currency,
 		BoundedVec, PalletId,
 	};
@@ -29,12 +30,14 @@ pub mod pallet {
 	use sp_io::hashing::keccak_256;
 	use sp_runtime::traits::AccountIdConversion;
 
-	use crate::{types::*, verification_process::*};
-
+	use crate::{
+		invalidate::{Invalidate, ReasonToInvalidate},
+		types::*,
+		verification_process::*,
+	};
+	use pallet_did::pallet::DidProvider;
 	use sp_core::{ConstU32, H256};
 	use sp_std::borrow::ToOwned;
-
-	use pallet_did::pallet::DidProvider;
 	use verifiers::{pallet::VerifiersProvider, types::VerifierUpdateData};
 
 	type IdDocumentOf<T> = <<T as Config>::IdDocument as IdDocument>::IdType;
@@ -159,6 +162,8 @@ pub mod pallet {
 		IdTypeWhitelisted(IdDocumentOf<T>),
 		/// parameters [IdType]
 		IdTypeRemoved(IdDocumentOf<T>),
+		/// Invalidated Ids
+		DidInvalidation(BoundedVec<T::AccountId, ConstU32<1000>>),
 	}
 
 	// Errors inform users that something went wrong.
@@ -208,6 +213,12 @@ pub mod pallet {
 		InvalidIdName,
 		InvalidIdIssuer,
 		InvalidCountry,
+		// ID not eligible for action or not verified or invalidated
+		WrongIdState,
+		// ID document type present still/already
+		IdTypeWhitelisted,
+		// DID not in valid state in DID module
+		DidNotValid,
 	}
 
 	#[pallet::hooks]
@@ -387,6 +398,30 @@ pub mod pallet {
 			}
 
 			Self::deposit_event(Event::IdTypeRemoved(id_type));
+			Ok(())
+		}
+		/// Removes a whitelisted ID Type. It takes new IdType. After removing, if no entry
+		/// left for the corresponding county, country is removed from the country_whitelist
+		/// also.
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1).ref_time())]
+		#[pallet::call_index(7)]
+		pub fn invalidate_ids(
+			origin: OriginFor<T>,
+			ids: BoundedVec<T::AccountId, ConstU32<1000>>,
+			reason: ReasonToInvalidate,
+		) -> DispatchResult {
+			ensure_signed(origin)?;
+			// let mut invalidated_ids: Vec<T::AccountId> = Vec::with_capacity(1000);
+			for id in ids.iter() {
+				<ReasonToInvalidate as Invalidate<T>>::is_verified(&id)?;
+			}
+
+			for id in ids.iter() {
+				<ReasonToInvalidate as Invalidate<T>>::invalidate(&reason, &id)?;
+			}
+			// let invalidated_ids_bounded: BoundedVec<T::AccountId, ConstU32<1000>> =
+			// 	invalidated_ids.try_into().expect("it can not be more than 1000");
+			Self::deposit_event(Event::DidInvalidation(ids));
 			Ok(())
 		}
 	}

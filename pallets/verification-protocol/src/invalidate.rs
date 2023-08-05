@@ -7,8 +7,12 @@ use frame_support::{dispatch::DispatchResult, ensure};
 use pallet_did::DidProvider;
 use scale_info::TypeInfo;
 
+// Reasons to invalidate an Id
 #[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Ord, Eq, PartialOrd, Debug)]
 pub enum ReasonToInvalidate {
+	// a whitelisted ID Document type removed
+	// which will entail invalidating all verifications
+	// done with that ID Document
 	IdDocumentRemoved,
 }
 
@@ -40,20 +44,20 @@ pub trait Invalidate<T: Config> {
 
 		Ok(())
 	}
-	fn invalidate(&self, id: T::AccountId) -> DispatchResult;
+	fn invalidate(&self, id: &T::AccountId) -> DispatchResult;
 }
 
 impl<T: Config> Invalidate<T> for ReasonToInvalidate {
-	fn invalidate(&self, id: T::AccountId) -> DispatchResult {
+	fn invalidate(&self, id: &T::AccountId) -> DispatchResult {
 		match self {
 			ReasonToInvalidate::IdDocumentRemoved => {
 				// Invalidate the verification state
-				VerificationResults::<T>::mutate(&id, |data| {
+				VerificationResults::<T>::mutate(id, |data| {
 					if let Some(d) = data {
 						d.stage = VerificationStages::Invalidated;
 					}
 				});
-				let _ = <<T as Config>::DidProvider>::invalidate_did(&id);
+				let _ = <<T as Config>::DidProvider>::invalidate_did(id);
 				// TODO! catch error
 			},
 			_ => unreachable!(),
