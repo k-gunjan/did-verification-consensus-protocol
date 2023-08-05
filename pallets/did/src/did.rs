@@ -11,7 +11,7 @@ pub trait Did<AccountId, BlockNumber, Moment, Error> {
 		value: &[u8],
 		valid_for: Option<BlockNumber>,
 	) -> Result<(), Error>;
-	fn reset_attribute(who: AccountId, identity: &AccountId, name: &[u8]) -> DispatchResult;
+	fn reset_attribute(who: &AccountId, identity: &AccountId, name: &[u8]) -> DispatchResult;
 	fn valid_attribute(identity: &AccountId, name: &[u8], value: &[u8]) -> DispatchResult;
 	fn attribute_and_id(
 		identity: &AccountId,
