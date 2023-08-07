@@ -182,11 +182,11 @@ pub mod pallet {
 
 		/// Updates the attribute validity to make it expire and invalid.
 		fn reset_attribute(
-			who: T::AccountId,
+			who: &T::AccountId,
 			identity: &T::AccountId,
 			name: &[u8],
 		) -> DispatchResult {
-			Self::is_owner(&identity, &who)?;
+			Self::is_owner(&identity, who)?;
 			// If the attribute contains_key, the latest valid block is set to the current block.
 			let result = Self::attribute_and_id(identity, name);
 			match result {
@@ -340,6 +340,7 @@ pub mod pallet {
 
 		fn is_account_created(identity: &Self::AccountId) -> bool;
 		fn creat_new_did(identity: &Self::AccountId) -> Result<(), ()>;
+		fn invalidate_did(identity: &Self::AccountId) -> Result<(), ()>;
 	}
 
 	impl<T: Config> DidProvider for Pallet<T> {
@@ -359,6 +360,17 @@ pub mod pallet {
 			let valid_for: Option<T::BlockNumber> = None;
 
 			let result = Self::create_attribute(&identity, &identity, &name, &value, valid_for);
+			if let Err(e) = result {
+				log::info!("error in creating DID VERIFIED attribute:{e:?}");
+				return Err(())
+			}
+			Ok(())
+		}
+
+		fn invalidate_did(identity: &Self::AccountId) -> Result<(), ()> {
+			let name: Vec<u8> = "VERIFIED".as_bytes().to_vec();
+
+			let result = Self::reset_attribute(&identity, &identity, &name);
 			if let Err(e) = result {
 				log::info!("error in creating DID VERIFIED attribute:{e:?}");
 				return Err(())
