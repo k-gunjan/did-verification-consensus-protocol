@@ -460,9 +460,9 @@ impl<T: Config> VerificationProcessDataItem<T> {
 /// hash1 may be hash of (name + DOB + Fathers name)
 #[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug, Ord, Eq, PartialOrd)]
 pub struct ConsumerDetails {
-	pub country: BoundedVec<u8, ConstU32<50>>,
-	pub id_issuing_authority: BoundedVec<u8, ConstU32<200>>,
-	pub type_of_id: BoundedVec<u8, ConstU32<200>>,
+	pub country: BoundedVec<u8, ConstU32<100>>,
+	pub id_issuing_authority: BoundedVec<u8, ConstU32<150>>,
+	pub type_of_id: BoundedVec<u8, ConstU32<150>>,
 	pub hash1_name_dob_father: Option<H256>,
 	pub hash2_name_dob_mother: Option<H256>,
 	pub hash3_name_dob_guardian: Option<H256>,
@@ -513,7 +513,7 @@ impl Default for ProtocolParameterValues {
 
 pub type Country = BoundedVec<u8, ConstU32<100>>;
 pub type IdIssuer = BoundedVec<u8, ConstU32<150>>;
-pub type IdName = BoundedVec<u8, ConstU32<100>>;
+pub type IdName = BoundedVec<u8, ConstU32<150>>;
 
 pub trait IdDocument {
 	type IdType;
