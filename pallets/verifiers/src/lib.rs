@@ -130,14 +130,36 @@ pub mod pallet {
 					.map(|v| v)
 					.collect();
 
-			// Create a random seed using the verifiers' accuracy scores
+			// Create a random seed using the verifiers' accuracy score and index
 			let accuracy_scores: Vec<(FixedI64, usize)> = verifiers
-				.iter()
-				.map(|v| (v.accuracy(), verifiers.iter().position(|x| x == v).unwrap()))
-				.collect();
+			.iter()
+			.enumerate()
+			.map(|(index, v)| (v.accuracy(), index))
+			.collect();
 
 			// Shuffle verifiers using the accuracy scores as the random seed
 			Self::shuffle_verifiers(&mut verifiers, &accuracy_scores);
+
+			// Calculate verifiers count to swap
+			let percentage = (verifiers.len() as f64 * 0.09) as usize;
+
+			// 9%~ shuffled verifiers subset
+			let shuffled_subset = verifiers.iter().take(percentage + 1).cloned().collect::<Vec<_>>();
+
+			// sort by accuracy of the verifiers
+			verifiers.sort_by_key(|k| k.accuracy());
+
+			// Iterate through the sorted verifiers and swap shuffled_subset verifiers
+			for i in 0..percentage {
+				if let Some(index) = verifiers.iter().position(|v| v.account_id == shuffled_subset[i].account_id) {
+					if i + 1 < percentage {
+						let next_verifier = &shuffled_subset[i + 1];
+						if let Some(next_index) = verifiers.iter().position(|v| v.account_id == next_verifier.account_id) {
+							verifiers.swap(index, next_index);
+						}
+					}
+				}
+			}
 
 			// Create a new list of account IDs based on the shuffled verifiers
 			let new_verifiers: Vec<T::AccountId> =
