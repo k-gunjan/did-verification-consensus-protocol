@@ -23,7 +23,7 @@ pub mod pallet {
 	use crate::types::*;
 	use frame_support::{
 		pallet_prelude::*,
-		sp_runtime::{traits::AccountIdConversion, FixedI64},
+		sp_runtime::traits::AccountIdConversion,
 		traits::{Currency, ExistenceRequirement},
 		PalletId,
 	};
@@ -35,6 +35,7 @@ pub mod pallet {
 		ArithmeticError, FixedU128,
 	};
 	use sp_std::vec::Vec;
+	use sp_io::hashing::blake2_256;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -130,15 +131,10 @@ pub mod pallet {
 					.map(|v| v)
 					.collect();
 
-			// Create a random seed using the verifiers' accuracy score and index
-			let accuracy_scores: Vec<(FixedI64, usize)> = verifiers
-			.iter()
-			.enumerate()
-			.map(|(index, v)| (v.accuracy(), index))
-			.collect();
-
-			// Shuffle verifiers using the accuracy scores as the random seed
-			Self::shuffle_verifiers(&mut verifiers, &accuracy_scores);
+			let current_block = <frame_system::Pallet<T>>::block_number();
+			
+			// Shuffle verifiers using current_block as the random seed
+			Self::shuffle_verifiers(&mut verifiers, current_block);
 
 			// Calculate verifiers count to swap
 			let percentage = (verifiers.len() as f64 * 0.09) as usize;
@@ -290,19 +286,29 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
-		/// Shuffles a vector using the accuracy scores as the random seed.
+		// Fisher-Yates shuffle using the generated random seed
 		fn shuffle_verifiers(
 			verifiers: &mut Vec<Verifier<T::AccountId, T::BlockNumber, BalanceOf<T>>>,
-			accuracy_scores: &[(FixedI64, usize)],
+			current_block: T::BlockNumber,
 		) {
-			let mut random_seed = accuracy_scores.to_vec();
-
-			// Fisher-Yates shuffle using the accuracy scores as the random seed
+			// Encode the current block into bytes and collect the cloned bytes 
+			let current_block_bytes = current_block.encode();
+			let random_seed: Vec<u8> = current_block_bytes.iter().cloned().collect();
+				
+			// Hash the random seed using blake2_256
+			let hashed_seed = blake2_256(&random_seed);
+		
+			// Convert the hashed seed to a u64 for randomness
+			// let seed: u64 = u64::from_le_bytes(hashed_seed[0..8].try_into().expect("Invalid hash length"));
+			let mut seed_bytes: [u8; 8] = Default::default();
+			seed_bytes.copy_from_slice(&hashed_seed[0..8]);
+			let seed: u64 = u64::from_le_bytes(seed_bytes);
+		
+			// Fisher-Yates shuffle
 			let mut i = verifiers.len();
 			while i > 1 {
 				i -= 1;
-				let j = random_seed[i].1 % (i + 1);
-				random_seed.swap(i, j);
+				let j = (seed as usize) % (i + 1);
 				verifiers.swap(i, j);
 			}
 		}
