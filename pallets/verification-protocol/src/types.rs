@@ -17,6 +17,38 @@ use sp_runtime::{
 };
 use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
 
+/// Struct of the did verification result
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug)]
+#[scale_info(skip_type_params(T))]
+pub struct VerificationResult<T: Config> {
+	pub consumer_account_id: T::AccountId,
+	pub submitted_at: T::BlockNumber,
+	pub completed_at: T::BlockNumber,
+	pub list_of_documents: BoundedVec<u8, T::MaxLengthListOfDocuments>,
+	pub did_creation_status: DidCreationStatus,
+	pub result: EvalVpResult,
+	pub stage: VerificationStages,
+}
+
+impl<T: Config> VerificationResult<T> {
+	pub fn from_completed_request(
+		completed_request: VerificationRequest<T>,
+		result: EvalVpResult,
+		did_creation_status: DidCreationStatus,
+		completed_at: T::BlockNumber,
+	) -> Self {
+		Self {
+			consumer_account_id: completed_request.consumer_account_id,
+			submitted_at: completed_request.submitted_at,
+			completed_at,
+			list_of_documents: completed_request.list_of_documents,
+			did_creation_status,
+			result,
+			stage: VerificationStages::Done,
+		}
+	}
+}
+
 /// Struct of the did verification request submitted by the consumer
 #[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug)]
 #[scale_info(skip_type_params(T))]
@@ -117,6 +149,8 @@ pub enum VerificationStages {
 	Eval,
 	/// Completed all stages
 	Done,
+	/// upon revoke or challenge
+	Invalidated,
 }
 
 /// Attributes of a particular Stage
@@ -460,9 +494,9 @@ impl<T: Config> VerificationProcessDataItem<T> {
 /// hash1 may be hash of (name + DOB + Fathers name)
 #[derive(Clone, Encode, Decode, PartialEq, TypeInfo, Debug, Ord, Eq, PartialOrd)]
 pub struct ConsumerDetails {
-	pub country: BoundedVec<u8, ConstU32<50>>,
-	pub id_issuing_authority: BoundedVec<u8, ConstU32<200>>,
-	pub type_of_id: BoundedVec<u8, ConstU32<200>>,
+	pub country: BoundedVec<u8, ConstU32<100>>,
+	pub id_issuing_authority: BoundedVec<u8, ConstU32<150>>,
+	pub type_of_id: BoundedVec<u8, ConstU32<150>>,
 	pub hash1_name_dob_father: Option<H256>,
 	pub hash2_name_dob_mother: Option<H256>,
 	pub hash3_name_dob_guardian: Option<H256>,
@@ -513,7 +547,7 @@ impl Default for ProtocolParameterValues {
 
 pub type Country = BoundedVec<u8, ConstU32<100>>;
 pub type IdIssuer = BoundedVec<u8, ConstU32<150>>;
-pub type IdName = BoundedVec<u8, ConstU32<100>>;
+pub type IdName = BoundedVec<u8, ConstU32<150>>;
 
 pub trait IdDocument {
 	type IdType;

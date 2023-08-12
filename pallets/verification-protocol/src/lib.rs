@@ -4,6 +4,7 @@
 /// Learn more about FRAME and the core library of Substrate FRAME pallets:
 /// <https://docs.substrate.io/reference/frame-pallets/>
 pub use pallet::*;
+pub mod invalidate;
 #[cfg(test)]
 mod mock;
 pub mod types;
@@ -20,7 +21,7 @@ pub mod pallet {
 	use frame_support::{
 		inherent::Vec,
 		log,
-		pallet_prelude::{OptionQuery, ValueQuery, *},
+		pallet_prelude::{DispatchResult, OptionQuery, ValueQuery, *},
 		traits::Currency,
 		BoundedVec, PalletId,
 	};
@@ -29,11 +30,14 @@ pub mod pallet {
 	use sp_io::hashing::keccak_256;
 	use sp_runtime::traits::AccountIdConversion;
 
-	use crate::{types::*, verification_process::*};
-
-	use sp_core::{ConstU32, H256};
-
+	use crate::{
+		invalidate::{Invalidate, ReasonToInvalidate},
+		types::*,
+		verification_process::*,
+	};
 	use pallet_did::pallet::DidProvider;
+	use sp_core::{ConstU32, H256};
+	use sp_std::borrow::ToOwned;
 	use verifiers::{pallet::VerifiersProvider, types::VerifierUpdateData};
 
 	type IdDocumentOf<T> = <<T as Config>::IdDocument as IdDocument>::IdType;
@@ -107,6 +111,12 @@ pub mod pallet {
 	pub(super) type VerificationRequests<T: Config> =
 		StorageMap<_, Blake2_128Concat, T::AccountId, VerificationRequest<T>>;
 
+	/// Stores the verification results
+	#[pallet::storage]
+	#[pallet::getter(fn verification_results)]
+	pub(super) type VerificationResults<T: Config> =
+		StorageMap<_, Blake2_128Concat, T::AccountId, VerificationResult<T>>;
+
 	// Verificatoin parameters submitted by verifiers
 	// (consumer_account_id, verifier_account_id) -> submitted_parameters
 	#[pallet::storage]
@@ -152,6 +162,8 @@ pub mod pallet {
 		IdTypeWhitelisted(IdDocumentOf<T>),
 		/// parameters [IdType]
 		IdTypeRemoved(IdDocumentOf<T>),
+		/// Invalidated Ids
+		DidInvalidation(BoundedVec<T::AccountId, ConstU32<1000>>),
 	}
 
 	// Errors inform users that something went wrong.
@@ -201,6 +213,12 @@ pub mod pallet {
 		InvalidIdName,
 		InvalidIdIssuer,
 		InvalidCountry,
+		// ID not eligible for action or not verified or invalidated
+		WrongIdState,
+		// ID document type present still/already
+		IdTypeWhitelisted,
+		// DID not in valid state in DID module
+		DidNotValid,
 	}
 
 	#[pallet::hooks]
@@ -352,12 +370,9 @@ pub mod pallet {
 		#[pallet::call_index(6)]
 		pub fn remove_id_type(origin: OriginFor<T>, id_type: IdDocumentOf<T>) -> DispatchResult {
 			let _who = ensure_signed(origin)?;
-			let IdType { country, .. } = &id_type;
+			let (country, count) = Self::validate_id_type(&id_type)?;
 
-			let whitelisted_id_types = Self::whitelisted_id_types(country);
-			ensure!(whitelisted_id_types.contains(&id_type), Error::<T>::IdTypeNotDefined);
-
-			WhitelistedIdTypes::<T>::mutate(country, |whitelist| {
+			WhitelistedIdTypes::<T>::mutate(&country, |whitelist| {
 				*whitelist = whitelist
 					.iter()
 					.cloned()
@@ -368,12 +383,12 @@ pub mod pallet {
 			});
 
 			// remove the country from the list as no id_type for this country exists
-			if whitelisted_id_types.len() == 1 {
+			if count == 1 {
 				WhitelistedCountries::<T>::mutate(|vc| {
 					*vc = vc
 						.iter()
 						.cloned()
-						.filter(|x| x != country)
+						.filter(|x| *x != country)
 						.collect::<Vec<Country>>()
 						.try_into()
 						.expect(
@@ -383,6 +398,30 @@ pub mod pallet {
 			}
 
 			Self::deposit_event(Event::IdTypeRemoved(id_type));
+			Ok(())
+		}
+		/// Removes a whitelisted ID Type. It takes new IdType. After removing, if no entry
+		/// left for the corresponding county, country is removed from the country_whitelist
+		/// also.
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1).ref_time())]
+		#[pallet::call_index(7)]
+		pub fn invalidate_ids(
+			origin: OriginFor<T>,
+			ids: BoundedVec<T::AccountId, ConstU32<1000>>,
+			reason: ReasonToInvalidate,
+		) -> DispatchResult {
+			ensure_signed(origin)?;
+			// let mut invalidated_ids: Vec<T::AccountId> = Vec::with_capacity(1000);
+			for id in ids.iter() {
+				<ReasonToInvalidate as Invalidate<T>>::is_verified(&id)?;
+			}
+
+			for id in ids.iter() {
+				<ReasonToInvalidate as Invalidate<T>>::invalidate(&reason, &id)?;
+			}
+			// let invalidated_ids_bounded: BoundedVec<T::AccountId, ConstU32<1000>> =
+			// 	invalidated_ids.try_into().expect("it can not be more than 1000");
+			Self::deposit_event(Event::DidInvalidation(ids));
 			Ok(())
 		}
 	}
@@ -652,6 +691,16 @@ pub mod pallet {
 
 							let reveald_parameter =
 								Self::parse_clear_parameters(&clear_parameters)?;
+							if let RevealedParameters::Accept(consumer_details) =
+								reveald_parameter.clone()
+							{
+								let id_type = IdDocumentOf::<T>::build(
+									consumer_details.type_of_id.into(),
+									consumer_details.id_issuing_authority.into(),
+									consumer_details.country.into(),
+								)?;
+								let _ = Self::validate_id_type(&id_type)?;
+							}
 							v.revealed_data = Some((current_block, reveald_parameter));
 							return Ok(())
 						} else {
@@ -785,7 +834,8 @@ pub mod pallet {
 			for consumer_id in list_verification_req {
 				// list of all the verification data submitted for a particular request
 				let revealed_data_list: Vec<VerificationProcessData<T>> =
-					VerificationProcessRecords::<T>::iter_prefix_values(consumer_id.clone())
+					VerificationProcessRecords::<T>::drain_prefix(consumer_id.clone())
+						.map(|(_, v)| v)
 						.collect();
 
 				let (result, incentive_data) = VerificationProcessData::eval_incentive(
@@ -823,18 +873,16 @@ pub mod pallet {
 					consumer_id.clone(),
 					did_creation_status,
 				));
-				VerificationRequests::<T>::try_mutate(
-					consumer_id,
-					|v: &mut Option<VerificationRequest<T>>| -> Result<(), Error<T>> {
-						let mut vr = v.as_mut().ok_or(Error::<T>::NoDidReqFound)?;
-						vr.state.eval_vp_result = Some(result.clone());
-						vr.state.eval_vp_state = Some(EvalVpState::Done);
-						vr.did_creation_status = did_creation_status;
-						// update the stage. this is the last stage
-						vr.state.stage = VerificationStages::Done;
-						Ok(())
-					},
-				)?;
+
+				if let Some(completed_request) = VerificationRequests::<T>::take(consumer_id) {
+					let final_result = VerificationResult::<T>::from_completed_request(
+						completed_request,
+						result.clone(),
+						did_creation_status,
+						current_block,
+					);
+					VerificationResults::<T>::insert(consumer_id, final_result);
+				}
 
 				combined_result.extend(incentive_data);
 			}
@@ -1046,6 +1094,16 @@ pub mod pallet {
 				ConsumerHashes::<T>::insert(&hash, (consumer_id.clone(), current_block));
 			}
 			Ok(())
+		}
+		// checkes if id_type is whitelisted and returns the Country and total number of whitelisted
+		// ID Documents for that country
+		pub(crate) fn validate_id_type(
+			id_type: &IdDocumentOf<T>,
+		) -> Result<(Country, usize), Error<T>> {
+			let IdType { country, .. } = &id_type;
+			let whitelisted_id_types = Self::whitelisted_id_types(country);
+			ensure!(whitelisted_id_types.contains(&id_type), Error::<T>::IdTypeNotDefined);
+			Ok((country.to_owned(), whitelisted_id_types.len()))
 		}
 	}
 }
