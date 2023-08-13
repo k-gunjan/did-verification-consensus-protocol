@@ -35,7 +35,6 @@ pub mod pallet {
 		ArithmeticError, FixedU128,
 	};
 	use sp_std::vec::Vec;
-	use sp_io::hashing::blake2_256;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -131,10 +130,11 @@ pub mod pallet {
 					.map(|v| v)
 					.collect();
 
-			let current_block = <frame_system::Pallet<T>>::block_number();
+			let current_block_hash = <frame_system::Pallet<T>>::block_hash(
+				<frame_system::Pallet<T>>::block_number());
 			
-			// Shuffle verifiers using current_block as the random seed
-			Self::shuffle_verifiers(&mut verifiers, current_block);
+			// Shuffle verifiers using current_block_hash as the random seed
+			Self::shuffle_verifiers(&mut verifiers, current_block_hash);
 
 			// Calculate verifiers count to swap
 			let percentage = (verifiers.len() as f64 * 0.09) as usize;
@@ -286,25 +286,21 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
-		// Fisher-Yates shuffle using the generated random seed
+		// Shuffle verifiers using current_block_hash as the random seed
 		fn shuffle_verifiers(
 			verifiers: &mut Vec<Verifier<T::AccountId, T::BlockNumber, BalanceOf<T>>>,
-			current_block: T::BlockNumber,
+			block_hash: T::Hash,
 		) {
-			// Encode the current block into bytes and collect the cloned bytes 
-			let current_block_bytes = current_block.encode();
-			let random_seed: Vec<u8> = current_block_bytes.iter().cloned().collect();
-				
-			// Hash the random seed using blake2_256
-			let hashed_seed = blake2_256(&random_seed);
+			let mut seed: u64 = 0;
+	
+			for (i, byte) in block_hash.as_ref().iter().enumerate() {
+				// Take the first 8 bytes to construct the u64 seed
+				if i < 8 {
+					seed |= u64::from(*byte) << (i * 8);
+				}
+			}
 		
-			// Convert the hashed seed to a u64 for randomness
-			// let seed: u64 = u64::from_le_bytes(hashed_seed[0..8].try_into().expect("Invalid hash length"));
-			let mut seed_bytes: [u8; 8] = Default::default();
-			seed_bytes.copy_from_slice(&hashed_seed[0..8]);
-			let seed: u64 = u64::from_le_bytes(seed_bytes);
-		
-			// Fisher-Yates shuffle
+			// Fisher-Yates shuffle	
 			let mut i = verifiers.len();
 			while i > 1 {
 				i -= 1;
