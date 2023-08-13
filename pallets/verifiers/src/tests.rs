@@ -45,3 +45,43 @@ fn correct_error_on_zero_deposit_register_verifier() {
 		);
 	});
 }
+
+#[test]
+fn state_check_on_register_with_greater_deposit_amount() {
+	new_test_ext().execute_with(|| {
+		let account = account_key("//Alice");
+		let deposit = 100u128 * 10u128.pow(12) + 1u128;
+		assert_ok!(Verifiers::register_verifier(RuntimeOrigin::signed(account), deposit));
+		// assert that the state is Active for deposit amount more that threshold
+		let v = Verifiers::verifiers(account);
+		assert!(matches!(v, Some(Verifier { state: VerifierState::Active, .. })))
+	})
+}
+
+#[test]
+fn state_check_on_register_with_less_deposit_amount() {
+	new_test_ext().execute_with(|| {
+		let account = account_key("//Alice");
+		let deposit = 100u128 * 10u128.pow(12) - 1u128;
+		assert_ok!(Verifiers::register_verifier(RuntimeOrigin::signed(account), deposit));
+		// assert that the state is Pending
+		let v = Verifiers::verifiers(account);
+		assert!(matches!(v, Some(Verifier { state: VerifierState::Pending, .. })))
+	})
+}
+
+#[test]
+fn state_check_on_additional_deposit_amount_to_become_active() {
+	new_test_ext().execute_with(|| {
+		let account = account_key("//Alice");
+		let deposit = 100u128 * 10u128.pow(12) - 1u128;
+		assert_ok!(Verifiers::register_verifier(RuntimeOrigin::signed(account), deposit));
+		// assert that the state is Pending
+		let v = Verifiers::verifiers(account);
+		assert!(matches!(v, Some(Verifier { state: VerifierState::Pending, .. })));
+
+		assert_ok!(Verifiers::verifier_deposit(RuntimeOrigin::signed(account), 1u128));
+		let v = Verifiers::verifiers(account);
+		assert!(matches!(v, Some(Verifier { state: VerifierState::Active, .. })));
+	})
+}

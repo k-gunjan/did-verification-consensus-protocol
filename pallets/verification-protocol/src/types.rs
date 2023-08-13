@@ -581,7 +581,7 @@ impl<T: Config> IdDocument for IdType<T> {
 	type IdType = IdType<T>;
 	type Error = Error<T>;
 
-	fn build(
+	pub fn build(
 		name: Vec<u8>,
 		issuer: Vec<u8>,
 		country: Vec<u8>,

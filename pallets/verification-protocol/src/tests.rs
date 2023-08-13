@@ -3,7 +3,7 @@ use crate::{
 	types::{IdDocument, IdType},
 	Error,
 };
-use frame_support::{assert_noop, assert_ok};
+use frame_support::{assert_noop, assert_ok, traits::Hooks};
 
 #[test]
 fn test_whitelist_id_type() {
@@ -120,5 +120,60 @@ fn test_whitelisted_countries() {
 		// Count of countries should reduce
 		assert_eq!(VerificationProtocol::whitelisted_countries().len(), 0);
 		assert_eq!(VerificationProtocol::whitelisted_id_types(&id_type_1.country).len(), 0);
+	});
+}
+
+#[test]
+fn test_did_creation_request() {
+	new_test_ext().execute_with(|| {
+		let account = account_key("//Alice");
+
+		assert_ok!(VerificationProtocol::submit_did_creation_request(
+			RuntimeOrigin::signed(account),
+			vec![0u8; 100]
+		));
+	});
+}
+
+#[test]
+fn test_did_creation_request_with_invalid_document_url_length() {
+	new_test_ext().execute_with(|| {
+		let account = account_key("//Alice");
+		//check with very small url :should fail
+		assert_noop!(
+			VerificationProtocol::submit_did_creation_request(
+				RuntimeOrigin::signed(account),
+				vec![0u8; 2]
+			),
+			Error::<Test>::ListOfDocsTooShort
+		);
+		// check with very long url :should fail
+		assert_noop!(
+			VerificationProtocol::submit_did_creation_request(
+				RuntimeOrigin::signed(account),
+				vec![0u8; 200]
+			),
+			Error::<Test>::ListOfDocsTooLong
+		);
+	});
+}
+
+#[test]
+fn test_did_creation_request_re_submission() {
+	new_test_ext().execute_with(|| {
+		let account = account_key("//Alice");
+
+		assert_ok!(VerificationProtocol::submit_did_creation_request(
+			RuntimeOrigin::signed(account),
+			vec![0u8; 100]
+		));
+		//upon trying to register again- it should fail
+		assert_noop!(
+			VerificationProtocol::submit_did_creation_request(
+				RuntimeOrigin::signed(account),
+				vec![0u8; 100]
+			),
+			Error::<Test>::CreationRequestAlreadyRegistered
+		);
 	});
 }

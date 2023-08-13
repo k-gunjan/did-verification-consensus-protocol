@@ -5,6 +5,7 @@ use frame_support::{
 	PalletId,
 };
 use frame_system as system;
+use pallet_balances as balances;
 use pallet_balances::AccountData;
 use pallet_verification_protocol::types::IdType;
 use sp_core::{sr25519, Pair, H256};
@@ -125,7 +126,18 @@ impl pallet_timestamp::Config for Test {
 
 // Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	system::GenesisConfig::default().build_storage::<Test>().unwrap().into()
+	let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
+
+	balances::GenesisConfig::<Test> {
+		balances: vec![
+			(account_key("//Alice"), 1000_000_000_000_000),
+			(account_key("//Bob"), 1000_000_000_000_000),
+		],
+	}
+	.assimilate_storage(&mut t)
+	.unwrap();
+
+	t.into()
 }
 
 pub fn account_key(s: &str) -> sr25519::Public {
