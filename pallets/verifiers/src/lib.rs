@@ -20,8 +20,10 @@ mod benchmarking;
 
 #[frame_support::pallet]
 pub mod pallet {
+
 	use crate::types::*;
 	use frame_support::{
+		// inherent::Vec,
 		pallet_prelude::*,
 		sp_runtime::traits::AccountIdConversion,
 		traits::{Currency, ExistenceRequirement},
@@ -35,7 +37,6 @@ pub mod pallet {
 		ArithmeticError, FixedU128,
 	};
 	use sp_std::vec::Vec;
-
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
@@ -122,58 +123,26 @@ pub mod pallet {
 		/// At block finalization
 		fn on_finalize(_now: BlockNumberFor<T>) {
 			let last_verifiers = Self::eligible_verifiers().to_vec();
-
-			// Retrieve all verifiers in an active state
 			let mut verifiers: Vec<Verifier<T::AccountId, T::BlockNumber, BalanceOf<T>>> =
 				Verifiers::<T>::iter_values()
 					.filter(|v| v.state == VerifierState::Active)
 					.map(|v| v)
 					.collect();
-
-			let current_block_hash = <frame_system::Pallet<T>>::block_hash(
-				<frame_system::Pallet<T>>::block_number());
-			
-			// Shuffle verifiers using current_block_hash as the random seed
-			Self::shuffle_verifiers(&mut verifiers, current_block_hash);
-
-			// Calculate verifiers count to swap
-			let percentage = (verifiers.len() as f64 * 0.09) as usize;
-
-			// 9%~ shuffled verifiers subset
-			let shuffled_subset = verifiers.iter().take(percentage + 1).cloned().collect::<Vec<_>>();
-
 			// sort by accuracy of the verifiers
 			verifiers.sort_by_key(|k| k.accuracy());
-
-			// Iterate through the sorted verifiers and swap shuffled_subset verifiers
-			for i in 0..percentage {
-				if let Some(index) = verifiers.iter().position(|v| v.account_id == shuffled_subset[i].account_id) {
-					if i + 1 < percentage {
-						let next_verifier = &shuffled_subset[i + 1];
-						if let Some(next_index) = verifiers.iter().position(|v| v.account_id == next_verifier.account_id) {
-							verifiers.swap(index, next_index);
-						}
-					}
-				}
-			}
-
-			// Create a new list of account IDs based on the shuffled verifiers
 			let new_verifiers: Vec<T::AccountId> =
 				verifiers.iter().map(|v| v.account_id.clone()).collect();
 
 			if last_verifiers != new_verifiers {
 				if new_verifiers.len() as u32 > T::MaxEligibleVerifiers::get() {
 					log::warn!(
-						"Next verifiers list larger than {}, truncating",
+						"next verifiers list larger than {}, truncating",
 						T::MaxEligibleVerifiers::get(),
 					);
 				}
-
-				// Truncate the list to fit within the maximum eligible verifiers limit
 				let bounded =
 					<BoundedVec<_, T::MaxEligibleVerifiers>>::truncate_from(new_verifiers);
 
-				// Store the bounded list of eligible verifiers in storage
 				EligibleVerifiers::<T>::put(bounded);
 			}
 		}
@@ -282,31 +251,6 @@ pub mod pallet {
 
 			Self::deposit_event(Event::ParametersUpdated(new_parameters));
 			Ok(())
-		}
-	}
-
-	impl<T: Config> Pallet<T> {
-		// Shuffle verifiers using current_block_hash as the random seed
-		fn shuffle_verifiers(
-			verifiers: &mut Vec<Verifier<T::AccountId, T::BlockNumber, BalanceOf<T>>>,
-			block_hash: T::Hash,
-		) {
-			let mut seed: u64 = 0;
-	
-			for (i, byte) in block_hash.as_ref().iter().enumerate() {
-				// Take the first 8 bytes to construct the u64 seed
-				if i < 8 {
-					seed |= u64::from(*byte) << (i * 8);
-				}
-			}
-		
-			// Fisher-Yates shuffle	
-			let mut i = verifiers.len();
-			while i > 1 {
-				i -= 1;
-				let j = (seed as usize) % (i + 1);
-				verifiers.swap(i, j);
-			}
 		}
 	}
 
