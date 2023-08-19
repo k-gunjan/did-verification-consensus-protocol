@@ -3,3 +3,6 @@ pub use system::*;
 
 pub mod grandpa;
 pub use grandpa::*;
+
+pub mod timestamp;
+pub use timestamp::*;
