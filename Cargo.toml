@@ -2,7 +2,7 @@
 members = [
     "node",
     "pallets/*",
-    "runtime",
+    "runtime/devnet",
 ]
 [profile.release]
 # Substrate runtime requires unwinding.

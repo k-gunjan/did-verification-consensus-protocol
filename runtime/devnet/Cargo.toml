@@ -84,12 +84,12 @@ frame-benchmarking = { version = "4.0.0-dev", default-features = false, git = "h
 frame-system-benchmarking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", optional = true, branch = "polkadot-v0.9.39" }
 
 # Local Dependencies
-pallet-template = { version = "4.0.0-dev", default-features = false, path = "../pallets/template" }
-pallet-adoption = { version = "4.0.0-dev", default-features = false, path = "../pallets/adoption" }
-pallet-did = { version = "4.0.0-dev", default-features = false, path = "../pallets/did" }
-pallet-did-rpc-runtime-api = { version = "1.0.0", default-features = false, path = "../pallets/did/rpc/runtime-api" }
-pallet-verification-protocol = {version = "4.0.0-dev", default-features = false, path = "../pallets/verification-protocol"}
-verifiers = { version = "4.0.0-dev", default-features = false, path = "../pallets/verifiers" }
+pallet-template = { version = "4.0.0-dev", default-features = false, path = "../../pallets/template" }
+pallet-adoption = { version = "4.0.0-dev", default-features = false, path = "../../pallets/adoption" }
+pallet-did = { version = "4.0.0-dev", default-features = false, path = "../../pallets/did" }
+pallet-did-rpc-runtime-api = { version = "1.0.0", default-features = false, path = "../../pallets/did/rpc/runtime-api" }
+pallet-verification-protocol = {version = "4.0.0-dev", default-features = false, path = "../../pallets/verification-protocol"}
+verifiers = { version = "4.0.0-dev", default-features = false, path = "../../pallets/verifiers" }
 
 [build-dependencies]
 substrate-wasm-builder = { version = "5.0.0-dev", optional = true, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.39" }
