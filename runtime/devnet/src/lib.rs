@@ -46,7 +46,6 @@ pub mod constants;
 use constants::{currency::*, time::*};
 
 mod pallets;
-use pallets::*;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -334,30 +333,6 @@ impl pallet_babe::Config for Runtime {
 
 parameter_types! {
 	pub const MaxSetIdSessionEntries: u32 = BondingDuration::get() * SessionsPerEra::get();
-}
-
-impl pallet_grandpa::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-
-	type KeyOwnerProofSystem = Historical;
-
-	type KeyOwnerProof =
-		<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
-
-	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		GrandpaId,
-	)>>::IdentificationTuple;
-
-	type HandleEquivocation = pallet_grandpa::EquivocationHandler<
-		Self::KeyOwnerIdentification,
-		Offences,
-		ReportLongevity,
-	>;
-
-	type WeightInfo = ();
-	type MaxAuthorities = MaxAuthorities;
-	type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
 }
 
 // type EnsureRootOrHalfCouncil = EnsureRoot<AccountId>;
