@@ -27,3 +27,6 @@ pub use treasury::*;
 
 pub mod session;
 pub use session::*;
+
+pub mod staking;
+pub use staking::*;
