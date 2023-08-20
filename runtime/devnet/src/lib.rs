@@ -79,7 +79,7 @@ use sp_runtime::{
 	generic,
 	impl_opaque_keys,
 	traits::{
-		self, BlakeTwo256, Block as BlockT, Bounded, IdentifyAccount, NumberFor, OpaqueKeys,
+		self, BlakeTwo256, Block as BlockT, Bounded, IdentifyAccount, NumberFor,
 		Verify, Zero,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
@@ -330,29 +330,6 @@ impl pallet_babe::Config for Runtime {
 
 	type WeightInfo = ();
 	type MaxAuthorities = MaxAuthorities;
-}
-
-parameter_types! {
-	pub const MaxSetIdSessionEntries: u32 = BondingDuration::get() * SessionsPerEra::get();
-}
-
-// type EnsureRootOrHalfCouncil = EnsureRoot<AccountId>;
-
-impl pallet_session::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type ValidatorId = <Self as frame_system::Config>::AccountId;
-	type ValidatorIdOf = pallet_staking::StashOf<Self>;
-	type ShouldEndSession = Babe;
-	type NextSessionRotation = Babe;
-	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, Staking>;
-	type SessionHandler = <opaque::SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
-	type Keys = opaque::SessionKeys;
-	type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
-}
-
-impl pallet_session::historical::Config for Runtime {
-	type FullIdentification = pallet_staking::Exposure<AccountId, Balance>;
-	type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
 }
 
 pallet_staking_reward_curve::build! {

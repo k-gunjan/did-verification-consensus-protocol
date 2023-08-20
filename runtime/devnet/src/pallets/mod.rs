@@ -24,3 +24,6 @@ pub use collective::*;
 
 pub mod treasury;
 pub use treasury::*;
+
+pub mod session;
+pub use session::*;

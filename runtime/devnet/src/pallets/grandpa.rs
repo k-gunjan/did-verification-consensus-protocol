@@ -7,6 +7,10 @@ use crate::*;
 
 pub use pallet_grandpa::AuthorityId as GrandpaId;
 
+parameter_types! {
+	pub const MaxSetIdSessionEntries: u32 = BondingDuration::get() * SessionsPerEra::get();
+}
+
 impl pallet_grandpa::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 
