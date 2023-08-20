@@ -45,3 +45,9 @@ pub use im_online::*;
 
 pub mod nomination_pools;
 pub use nomination_pools::*;
+
+pub mod democracy;
+pub use democracy::*;
+
+pub mod multisig;
+pub use multisig::*;
