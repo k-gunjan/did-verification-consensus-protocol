@@ -30,3 +30,9 @@ pub use session::*;
 
 pub mod staking;
 pub use staking::*;
+
+pub mod election_provider_multi_phase;
+pub use election_provider_multi_phase::*;
+
+pub mod elections_phragmen;
+pub use elections_phragmen::*;
