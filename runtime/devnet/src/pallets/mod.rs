@@ -36,3 +36,12 @@ pub use election_provider_multi_phase::*;
 
 pub mod elections_phragmen;
 pub use elections_phragmen::*;
+
+pub mod bags_list;
+pub use bags_list::*;
+
+pub mod im_online;
+pub use im_online::*;
+
+pub mod nomination_pools;
+pub use nomination_pools::*;
