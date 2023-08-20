@@ -21,3 +21,6 @@ pub use preimage::*;
 
 pub mod collective;
 pub use collective::*;
+
+pub mod treasury;
+pub use treasury::*;
