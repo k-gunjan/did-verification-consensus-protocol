@@ -51,3 +51,18 @@ pub use democracy::*;
 
 pub mod multisig;
 pub use multisig::*;
+
+pub mod contracts;
+pub use contracts::*;
+
+pub mod indices;
+pub use indices::*;
+
+pub mod mmr;
+pub use mmr::*;
+
+pub mod babe;
+pub use babe::*;
+
+pub mod utility;
+pub use utility::*;
