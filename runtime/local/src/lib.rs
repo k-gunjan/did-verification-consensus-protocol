@@ -22,10 +22,8 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 512.
 #![recursion_limit = "512"]
 
-mod chain_extension;
-// use crate::pallet_did::types::*;
-use chain_extension::DidChainExtension;
-// use pallet_did::did::Did;
+mod pallets;
+pub use pallets::*;
 
 /// Import the template pallet.
 pub use pallet_template;
@@ -39,14 +37,19 @@ pub use pallet_did;
 ///import the pallet verification protocol
 pub use pallet_verification_protocol;
 
+/// Import pallet verifiers
+pub use verifiers;
+
+mod chain_extension;
+use chain_extension::DidChainExtension;
+
 use pallet_did::types::Attribute;
 
 /// Constant values used within the runtime.
 pub mod constants;
-use constants::{currency::*, time::*};
+pub use constants::currency::*;
 
-mod pallets;
-pub use pallets::*;
+pub use runtime_common::*;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -78,21 +81,16 @@ use sp_runtime::{
 	generic,
 	impl_opaque_keys,
 	traits::{
-		self, BlakeTwo256, Block as BlockT, Bounded, IdentifyAccount, NumberFor,
-		Verify, Zero,
+		self, BlakeTwo256, Block as BlockT, Bounded, NumberFor, Zero,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, FixedPointNumber, FixedU128, MultiSignature, Perbill,
-	Perquintill,
+	ApplyExtrinsicResult, FixedPointNumber, FixedU128, Perquintill,
 };
 use sp_std::prelude::*;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
-
-/// Import pallet verifiers
-pub use verifiers;
 
 #[cfg(any(feature = "std", test))]
 pub use frame_system::Call as SystemCall;
@@ -108,26 +106,19 @@ pub use sp_runtime::BuildStorage;
 // A few exports that help ease life for downstream crates.
 pub use frame_support::{
 	construct_runtime,
-	dispatch::DispatchClass,
 	pallet_prelude::Get,
 	parameter_types,
 	traits::{
 		ConstBool, ConstU128, ConstU16, ConstU32, ConstU64, ConstU8, Currency, EitherOfDiverse,
-		Everything, Imbalance, KeyOwnerProofSystem, Nothing, StorageInfo, 
-		OnUnbalanced, Randomness
+		Everything, Imbalance, KeyOwnerProofSystem, StorageInfo, OnUnbalanced, Randomness
 	},
 	weights::{
-		constants::{
-			BlockExecutionWeight, ExtrinsicBaseWeight, WEIGHT_REF_TIME_PER_SECOND,
-		},
 		ConstantMultiplier, IdentityFee, Weight,
 	},
 	PalletId, StorageValue,
 };
 
-
 use frame_system::{
-	limits::{BlockLength, BlockWeights},
 	EnsureRoot, EnsureSigned,
 };
 
@@ -138,34 +129,6 @@ pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier, TargetedFeeAdjustment};
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-
-/// An index to a block.
-pub type BlockNumber = u32;
-
-/// Alias to 512-bit hash when used in the context of a transaction signature on the chain.
-pub type Signature = MultiSignature;
-
-/// Some way of identifying an account on the chain. We intentionally make it equivalent
-/// to the public key of our transaction signing scheme.
-pub type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
-
-/// Balance of an account.
-pub type Balance = u128;
-
-/// Index of a transaction in the chain.
-pub type Index = u32;
-
-/// A hash of some data used by the chain.
-pub type Hash = sp_core::H256;
-
-/// Type used for expressing timestamp.
-pub type Moment = u64;
-
-/// The type for looking up accounts. We don't expect more than 4 billion of them.
-pub type AccountIndex = u32;
-
-/// Generated voter bag information.
-mod voter_bags;
 
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
 /// the specifics of the runtime. They can then be made to be agnostic over specific formats
@@ -251,45 +214,12 @@ impl OnUnbalanced<NegativeImbalance> for Author {
 		}
 	}
 }
-/// We assume that ~10% of the block weight is consumed by `on_initialize` handlers.
-/// This is used to limit the maximal weight of a single extrinsic.
-const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(10);
-/// We allow `Normal` extrinsics to fill up the block up to 75%, the rest can be used
-/// by  Operational  extrinsics.
-const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
-/// We allow for 2 seconds of compute with a 6 second average block time, with maximum proof size.
-const MAXIMUM_BLOCK_WEIGHT: Weight =
-	Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND.saturating_mul(2), u64::MAX);
-
-parameter_types! {
-	pub const BlockHashCount: BlockNumber = 2400;
-	pub const Version: RuntimeVersion = VERSION;
-	pub RuntimeBlockLength: BlockLength =
-		BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
-	pub RuntimeBlockWeights: BlockWeights = BlockWeights::builder()
-		.base_block(BlockExecutionWeight::get())
-		.for_class(DispatchClass::all(), |weights| {
-			weights.base_extrinsic = ExtrinsicBaseWeight::get();
-		})
-		.for_class(DispatchClass::Normal, |weights| {
-			weights.max_total = Some(NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT);
-		})
-		.for_class(DispatchClass::Operational, |weights| {
-			weights.max_total = Some(MAXIMUM_BLOCK_WEIGHT);
-			// Operational transactions have some extra reserved space, so that they
-			// are included even if block reached `MAXIMUM_BLOCK_WEIGHT`.
-			weights.reserved = Some(
-				MAXIMUM_BLOCK_WEIGHT - NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT
-			);
-		})
-		.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
-		.build_or_panic();
-}
 
 const_assert!(NORMAL_DISPATCH_RATIO.deconstruct() >= AVERAGE_ON_INITIALIZE_RATIO.deconstruct());
 
 parameter_types! {
-	pub const UncleGenerations: BlockNumber = 5;
+	pub const Version: RuntimeVersion = VERSION;
+	pub const BlockHashCount: BlockNumber = 2400;
 }
 
 impl pallet_authorship::Config for Runtime {
@@ -297,9 +227,8 @@ impl pallet_authorship::Config for Runtime {
 	type EventHandler = (Staking, ImOnline);
 }
 
-impl pallet_sudo::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type RuntimeCall = RuntimeCall;
+impl pallet_authority_discovery::Config for Runtime {
+	type MaxAuthorities = MaxAuthorities;
 }
 
 impl pallet_offences::Config for Runtime {
@@ -308,21 +237,14 @@ impl pallet_offences::Config for Runtime {
 	type OnOffenceHandler = Staking;
 }
 
-impl pallet_authority_discovery::Config for Runtime {
-	type MaxAuthorities = MaxAuthorities;
-}
-
 impl frame_system::offchain::SigningTypes for Runtime {
 	type Public = <Signature as traits::Verify>::Signer;
 	type Signature = Signature;
 }
 
-// Configure the verifier pallets
-impl verifiers::Config for Runtime {
+impl pallet_sudo::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type Currency = Balances;
-	type PalletId = TreasuryPalletId;
-	type MaxEligibleVerifiers = MaxEligibleVerifiers;
+	type RuntimeCall = RuntimeCall;
 }
 
 // Configure the pallet-template in pallets/template.
@@ -330,14 +252,17 @@ impl pallet_template::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 }
 
+// Felidae pallets:
+// ----------------------------------------------------------------------------
+
 parameter_types! {
 	///max length of id in adoption pallet
 	pub const MaxLength:u32 = 10;
 		///min length of id in adoption pallet
 	pub const MinLength:u32 = 5;
-	///max and min (32 for v0) lenght of CID
+	///max and min (32 for v0) length of CID
 	pub const MinCIDLength:u32 = 32;
-	pub const MaxCIDLength:u32 = 100; //most likely max as lenght depends on hashing algo
+	pub const MaxCIDLength:u32 = 100; //most likely max as length depends on hashing algo
 }
 
 // Configure the pallet-adoption in pallets/adoption.
@@ -358,11 +283,11 @@ impl pallet_did::Config for Runtime {
 	type WeightInfo = pallet_did::weights::SubstrateWeight<Runtime>;
 }
 
-// //parameters of pallet verification protocol & verifiers
+// parameters of pallet verification protocol & verifiers
 parameter_types! {
-pub const MaxLengthListOfDocuments: u32 = 150;
-pub const MaxEligibleVerifiers: u32 = 1000;
-}
+	pub const MaxLengthListOfDocuments: u32 = 150;
+	pub const MaxEligibleVerifiers: u32 = 1000;
+	}
 
 // Configure the  pallet verification protocol
 impl pallet_verification_protocol::Config for Runtime {
@@ -373,6 +298,14 @@ impl pallet_verification_protocol::Config for Runtime {
 	type VerifiersProvider = Verifiers;
 	type DidProvider = DidModule;
 	type IdDocument = IdType<Self>;
+}
+
+// Configure the verifier pallets
+impl verifiers::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type PalletId = TreasuryPalletId;
+	type MaxEligibleVerifiers = MaxEligibleVerifiers;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.

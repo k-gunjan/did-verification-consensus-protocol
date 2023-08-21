@@ -85,6 +85,7 @@ frame-system-benchmarking = { version = "4.0.0-dev", default-features = false, g
 
 # Local Dependencies
 pallet-template = { version = "4.0.0-dev", default-features = false, path = "../../pallets/template" }
+runtime-common = { version = "1.0.0", default-features = false, path = "../common" }
 pallet-adoption = { version = "4.0.0-dev", default-features = false, path = "../../pallets/adoption" }
 pallet-did = { version = "4.0.0-dev", default-features = false, path = "../../pallets/did" }
 pallet-did-rpc-runtime-api = { version = "1.0.0", default-features = false, path = "../../pallets/did/rpc/runtime-api" }
@@ -161,6 +162,7 @@ std = [
 	"pallet-offences-benchmarking?/std",
 	"sp-authority-discovery/std",
 	"substrate-wasm-builder",
+	"runtime-common/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

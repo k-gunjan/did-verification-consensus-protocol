@@ -2,6 +2,8 @@
 
 use crate::*;
 
+use frame_support::{dispatch::DispatchClass, traits::Nothing};
+
 parameter_types! {
 	pub const DepositPerItem: Balance = contracts_deposit(1, 0);
 	pub const DepositPerByte: Balance = contracts_deposit(0, 1);

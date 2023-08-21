@@ -3,7 +3,7 @@ use felidae_runtime::{
 	AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, Block, CouncilConfig, DemocracyConfig,
 	ElectionsConfig, GenesisConfig, GrandpaConfig, ImOnlineConfig, IndicesConfig, MaxNominations,
 	NominationPoolsConfig, SessionConfig, Signature, StakerStatus, StakingConfig, SudoConfig,
-	SystemConfig, TechnicalCommitteeConfig,
+	SystemConfig, TechnicalCommitteeConfig, Balance
 };
 
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
@@ -381,7 +381,7 @@ pub fn local_testnet_config() -> ChainSpec {
 		None,
 		None,
 		None,
-		None,
+		Some(get_dev_properties()),
 		Default::default(),
 	)
 }

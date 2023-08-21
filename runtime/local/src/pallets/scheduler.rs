@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 
 use frame_support::traits::EqualPrivilegeOnly;
+use sp_runtime::Perbill;
 
 use crate::*;
 

@@ -1,6 +1,12 @@
 pub mod system;
 pub use system::*;
 
+pub mod im_online;
+pub use im_online::*;
+
+pub mod babe;
+pub use babe::*;
+
 pub mod grandpa;
 pub use grandpa::*;
 
@@ -40,9 +46,6 @@ pub use elections_phragmen::*;
 pub mod bags_list;
 pub use bags_list::*;
 
-pub mod im_online;
-pub use im_online::*;
-
 pub mod nomination_pools;
 pub use nomination_pools::*;
 
@@ -60,9 +63,6 @@ pub use indices::*;
 
 pub mod mmr;
 pub use mmr::*;
-
-pub mod babe;
-pub use babe::*;
 
 pub mod utility;
 pub use utility::*;

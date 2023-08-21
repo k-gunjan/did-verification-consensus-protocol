@@ -1961,6 +1961,7 @@ dependencies = [
  "pallet-utility",
  "pallet-verification-protocol",
  "parity-scale-codec",
+ "runtime-common",
  "scale-info",
  "sp-api",
  "sp-authority-discovery",
@@ -6303,6 +6304,18 @@ dependencies = [
  "serde",
  "thiserror",
  "webrtc-util",
+]
+
+[[package]]
+name = "runtime-common"
+version = "1.0.0"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
