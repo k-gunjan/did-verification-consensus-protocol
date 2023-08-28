@@ -1,7 +1,5 @@
 pub(crate) use crate as pallet_verification_protocol;
-pub use crate::mock::{
-	sp_api_hidden_includes_construct_runtime::hidden_include::traits::Hooks, sr25519::Public,
-};
+pub(crate) use frame_support::pallet_prelude::Hooks;
 use frame_support::{
 	parameter_types,
 	traits::{ConstU128, ConstU16, ConstU64},
@@ -14,7 +12,7 @@ pub(crate) use pallet_verification_protocol::{
 	types::{ProtocolParameterValues as VerificationProtocolParameterValues, *},
 	*,
 };
-pub use sp_core::{bounded_vec::BoundedVec, keccak_256, sr25519, Pair, H256};
+pub use sp_core::{bounded_vec::BoundedVec, keccak_256, sr25519, sr25519::Public, Pair, H256};
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},

@@ -5,8 +5,6 @@
 /// <https://docs.substrate.io/reference/frame-pallets/>
 pub use pallet::*;
 pub mod invalidate;
-#[cfg(test)]
-mod mock;
 pub mod types;
 pub mod verification_process;
 
