@@ -58,55 +58,8 @@ pub struct VerificationRequest<T: Config> {
 	pub list_of_documents: BoundedVec<u8, T::MaxLengthListOfDocuments>,
 	pub did_creation_status: DidCreationStatus,
 	pub state: StateConfig<T::BlockNumber>,
+	pub round_number: u8,
 }
-
-/// Macro to update the verification request object on fulfillment of the task by verifiers
-/// or the chain itself
-// #[macro_use]
-#[macro_export]
-macro_rules! act_on_fulfilled {
-	($stage:ident, $obj:expr, $fulfilled_count:expr, $current_block:expr ) => {
-		$obj.state.$stage.pending_count_of_verifiers -= $fulfilled_count;
-		$obj.state.$stage.done_count_of_verifiers += $fulfilled_count;
-		if $obj.state.$stage.pending_count_of_verifiers == 0 {
-			$obj.state.$stage.state = false;
-			$obj.state.$stage.ended_at = Some($current_block);
-			if stringify!($stage) == "reveal" {
-				//start the next stage: evaluation of revealed parameters
-				$obj.state.stage = VerificationStages::Eval;
-				$obj.state.eval_vp_state = Some(EvalVpState::Pending);
-				$obj.state.eval_vp_result = Some(EvalVpResult::Pending);
-			}
-		}
-	};
-}
-pub use act_on_fulfilled;
-
-/// Macro to start or update the stages of the verification requests
-/// it starts the new round with new required number to fulfill, wait duration and the current
-/// block number
-#[macro_export]
-macro_rules! start_stage {
-	($stage:ident, $obj:expr, $pending_count_increment:expr, $wait_time:expr, $current_block:expr ) => {
-		$obj.state.$stage.state = true;
-		$obj.state.$stage.round_number += 1;
-		$obj.state.$stage.started_at = $current_block;
-		// default value started at zero.
-		$obj.state.$stage.pending_count_of_verifiers += $pending_count_increment;
-		// state duration to be set not incremented
-		$obj.state.$stage.state_duration = $wait_time;
-
-		// update verification request stage to indicate Reveal state
-		// and close previous stages if starting reveal stage
-		if stringify!($stage) == "reveal" {
-			$obj.state.stage = VerificationStages::Reveal;
-			$obj.state.allot.state = false;
-			$obj.state.ack.state = false;
-			$obj.state.submit_vp.state = false;
-		}
-	};
-}
-pub use start_stage;
 
 /// Enumurates the possible Did Creation Statuses
 #[derive(Eq, PartialEq, PartialOrd, TypeInfo, Ord, Clone, Encode, Decode, Default, Debug, Copy)]
@@ -158,7 +111,6 @@ pub enum VerificationStages {
 pub struct StateAttributes<BlockNumber> {
 	pub done_count_of_verifiers: u16,
 	pub pending_count_of_verifiers: u16,
-	pub round_number: u16,
 	/// whether this is to be fulfilled or Done
 	pub state: bool,
 	/// Start time of the state true
