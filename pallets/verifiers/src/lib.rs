@@ -267,7 +267,7 @@ pub mod pallet {
 			}
 		}
 
-		pub(crate) fn account_id() -> T::AccountId {
+		pub fn account_id() -> T::AccountId {
 			T::PalletId::get().into_account_truncating()
 		}
 	}
@@ -372,7 +372,7 @@ pub mod pallet {
 								if parameters.penalty_waiver_score > accuracy {
 									let penalty_amount =
 										FixedU128::from_inner(parameters.penalty_amount)
-											.checked_sub(
+											.checked_add(
 												&FixedU128::from_inner(parameters.penalty_amount)
 													.checked_mul(&update_data.incentive_factor)
 													.ok_or(ArithmeticError::Overflow)?,
@@ -423,7 +423,7 @@ pub mod pallet {
 									let penalty_amount = FixedU128::from_inner(
 										parameters.penalty_amount_not_completed,
 									)
-									.checked_sub(
+									.checked_add(
 										&FixedU128::from_inner(
 											parameters.penalty_amount_not_completed,
 										)
@@ -440,13 +440,6 @@ pub mod pallet {
 										.checked_sub(&incentive_amount)
 										.ok_or(ArithmeticError::Overflow)?;
 
-									// let _ = T::Currency::transfer(
-									// 	&verifier.account_id,
-									// 	&Self::account_id(),
-									// 	incentive_amount,
-									// 	ExistenceRequirement::KeepAlive,
-									// );
-									// InActivate if balance goes bellow limit
 									if verifier.balance <
 										parameters
 											.minimum_deposit_for_being_active

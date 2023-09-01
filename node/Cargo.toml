@@ -79,7 +79,7 @@ frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/parityte
 frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", optional = true, branch = "polkadot-v0.9.39" }
 
 # Local Dependencies
-felidae-runtime = { version = "4.0.0-dev", path = "../runtime" }
+felidae-runtime = { version = "4.0.0-dev", path = "../runtime/local/" }
 
 # CLI-specific dependencies
 sc-cli = { version = "0.10.0-dev", optional = true, git = "https://github.com/paritytech/substrate.git", branch = "polkadot-v0.9.39" }
