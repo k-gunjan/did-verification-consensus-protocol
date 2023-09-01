@@ -1,5 +1,5 @@
 pub(crate) use crate as pallet_verification_protocol;
-pub(crate) use frame_support::pallet_prelude::Hooks;
+pub(crate) use frame_support::{assert_noop, assert_ok, pallet_prelude::Hooks};
 use frame_support::{
 	parameter_types,
 	traits::{ConstU128, ConstU16, ConstU64},
@@ -13,11 +13,14 @@ pub(crate) use pallet_verification_protocol::{
 	*,
 };
 pub use sp_core::{bounded_vec::BoundedVec, keccak_256, sr25519, sr25519::Public, Pair, H256};
+pub use sp_runtime::FixedI64;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
 	BuildStorage,
 };
+pub(crate) use verifiers::types::ProtocolParameterValues as VerifierProtocolParameterValues;
+
 /// Balance of an account.
 pub type Balance = u128;
 
@@ -149,7 +152,7 @@ impl Default for ExtBuilder {
 }
 
 impl ExtBuilder {
-	pub fn _balances(mut self, balances: &[(sr25519::Public, Balance)]) -> Self {
+	pub fn balances(mut self, balances: &[(sr25519::Public, Balance)]) -> Self {
 		self.balances = balances.to_vec();
 		self
 	}
@@ -325,4 +328,33 @@ pub fn generate_consumer_data_indian_passport() -> (H256, Vec<u8>, Vec<u8>, Cons
 	};
 
 	(h256_hash_combined_clear_vec_with_secret, clear_vec, secret_vecbytes, consumer_details)
+}
+
+pub fn update_verification_request_to_round_2_from_1(vr: &mut VerificationRequest<Test>) {
+	let parameters = VerificationProtocol::protocol_parameters();
+	vr.round_number = 2;
+
+	let num_of_new_verifiers_required_allot =
+		(parameters.min_count_at_submit_vp_stage - vr.state.submit_vp.done_count_of_verifiers) * 3;
+
+	vr.state.allot.state = true;
+	vr.state.allot.pending_count_of_verifiers += num_of_new_verifiers_required_allot;
+
+	let state_duration_incr_submit_vp = parameters.max_waiting_time_at_stages as u32 * 2u32;
+	vr.state.submit_vp.state_duration += state_duration_incr_submit_vp;
+}
+
+pub fn update_verification_request_to_go_to_next_round(vr: &mut VerificationRequest<Test>) {
+	let parameters = VerificationProtocol::protocol_parameters();
+	vr.round_number += 1;
+
+	let num_of_new_verifiers_required_allot =
+		(parameters.min_count_at_submit_vp_stage - vr.state.submit_vp.done_count_of_verifiers) * 3;
+
+	vr.state.allot.state = true;
+	vr.state.allot.pending_count_of_verifiers += num_of_new_verifiers_required_allot;
+
+	let state_duration_incr_submit_vp =
+		vr.state.submit_vp.state_duration as u32 * vr.round_number as u32;
+	vr.state.submit_vp.state_duration += state_duration_incr_submit_vp;
 }

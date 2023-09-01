@@ -1,5 +1,4 @@
 use super::mock::*;
-use frame_support::{assert_noop, assert_ok};
 
 #[test]
 fn test_whitelist_id_type() {
