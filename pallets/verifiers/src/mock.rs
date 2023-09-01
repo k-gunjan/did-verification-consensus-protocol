@@ -1,14 +1,14 @@
 use crate as verifiers;
-use pallet_balances as balances;
-
 use frame_support::{
 	parameter_types,
 	traits::{ConstU128, ConstU16, ConstU32, ConstU64},
 	PalletId,
 };
 use frame_system as system;
+use pallet_balances as balances;
 use pallet_balances::AccountData;
 use sp_core::{sr25519, Pair, H256};
+pub use sp_runtime::FixedI64;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
@@ -19,6 +19,7 @@ pub type Balance = u128;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
+pub(crate) use verifiers::types::ProtocolParameterValues as VerifierProtocolParameterValues;
 
 // Configure a mock runtime to test the pallet.
 frame_support::construct_runtime!(

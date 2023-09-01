@@ -5,8 +5,6 @@
 /// <https://docs.substrate.io/reference/frame-pallets/>
 pub use pallet::*;
 pub mod invalidate;
-#[cfg(test)]
-mod mock;
 pub mod types;
 pub mod verification_process;
 
@@ -446,11 +444,11 @@ pub mod pallet {
 				submitted_at: current_block,
 				list_of_documents: bounded_list_of_doc,
 				did_creation_status: DidCreationStatus::default(),
+				round_number: 1,
 				state: StateConfig {
 					allot: StateAttributes {
 						done_count_of_verifiers: 0,
 						pending_count_of_verifiers: parameters.min_count_at_allot_stage,
-						round_number: 1,
 						state: true,
 						started_at: current_block,
 						ended_at: None.into(),
@@ -471,94 +469,76 @@ pub mod pallet {
 			verifiers: Vec<T::AccountId>,
 			verification_requests: Vec<(&T::AccountId, u16)>,
 		) -> Result<(), Error<T>> {
-			log::debug!(
-				"*-*-*-*-*-*-total requests pending for allotment:{:?}",
-				verification_requests.len()
-			);
-
-			let total_v_required: u32 =
-				verification_requests.clone().iter().map(|(_, c)| *c as u32).sum();
-			let mut looped_verifiers: Vec<_> =
-				verifiers.iter().cycle().take(total_v_required as usize).collect();
-			log::debug!(
-				"*-*-*-*-*-*-total verifiers required:{:?}, total count of verifiers in :{:?}",
-				total_v_required,
-				verifiers.len()
-			);
-
-			// fetch protocol parameters
-			let parameters = Self::protocol_parameters();
-			// for every `consumer_id` the task will be allot to `count` verifiers
+			let mut verifier_index: usize = 0;
+			let total_varifiers = verifiers.len();
+			// for every `consumer_id` the task will be allotted to `count` no of verifiers
 			for (consumer_id, count) in verification_requests.into_iter() {
-				VerificationRequests::<T>::try_mutate(consumer_id, |v| -> Result<(), Error<T>> {
-					let mut vr = v.as_mut().ok_or(Error::<T>::NoDidReqFound)?;
+				// total number of verifier allotted for the consumer in this block
+				let mut allotted_to_count = 0;
+				for _ in 0..count {
+					// track if not un-allotted verifer left
+					let mut all_already_got_this_task = true;
+					// Try to allot a verifier. at most check all the verifiers
+					for _tried in 0..total_varifiers {
+						let chosen_verifier =
+							&verifiers[(verifier_index + _tried) % total_varifiers];
 
-					let mut allotted_to_count = 0;
-					let mut skipped_verifiers = Vec::new();
-
-					for _i in 0..count {
-						let a_v = looped_verifiers.pop();
-						match a_v {
-							Some(v) => {
-								if <VerificationProcessRecords<T>>::contains_key(consumer_id, v) {
-									log::debug!(
-										"This verifier: {:?} has already got this task of:{:?}",
-										consumer_id,
-										v
-									);
-									// put the removed verifier in a temp list to put them back
-									// in the verifiers list in the end of this
-									skipped_verifiers.push(v);
-									continue
-								}
-
-								let vpdata = VerificationProcessData::allot_to_verifier(
-									v.clone(),
-									current_block,
-								);
-								VerificationProcessRecords::<T>::insert(consumer_id, v, vpdata);
-								Self::deposit_event(Event::VerificatoinTaskAllotted {
-									consumer: consumer_id.clone(),
-									verifier: v.clone(),
-									document: vr.list_of_documents.to_vec(),
-								});
-								// increment the  count of allotted verifiers
-								allotted_to_count += 1;
-							},
-							None => break,
+						if !VerificationProcessRecords::<T>::contains_key(
+							&consumer_id,
+							&chosen_verifier,
+						) {
+							let vpdata = VerificationProcessData::allot_to_verifier(
+								chosen_verifier.clone(),
+								current_block,
+							);
+							VerificationProcessRecords::<T>::insert(
+								consumer_id.clone(),
+								chosen_verifier,
+								vpdata,
+							);
+							allotted_to_count += 1;
+							all_already_got_this_task = false;
+							break
 						}
 					}
-					// append the skipped verifiers back to the main list
-					looped_verifiers.append(&mut skipped_verifiers);
+					verifier_index += 1;
 
-					if allotted_to_count > 0 {
+					if all_already_got_this_task {
+						// trying to allot again will not succeed
+						break
+					}
+				}
+
+				if allotted_to_count > 0 {
+					VerificationRequests::<T>::mutate(consumer_id, |v| -> Result<(), Error<T>> {
+						let mut vr = v.as_mut().ok_or(Error::<T>::NoDidReqFound)?;
+						// fetch protocol parameters
+						let parameters = Self::protocol_parameters();
 						// update general stage of the task
 						vr.state.stage = VerificationStages::AllotAckVp;
 						// update allot stage parameters
-						// vr.act_on_fulfilled_allot(allotted_to_count, current_block);
-						act_on_fulfilled!(allot, vr, allotted_to_count, current_block);
-
-						// update accept task stage parameters
-						start_stage!(
-							ack,
-							vr,
-							parameters.min_count_at_ack_accept_stage,
-							parameters.max_waiting_time_at_stages,
-							current_block
-						);
-
+						vr.state.allot.done_count_of_verifiers += allotted_to_count;
+						vr.state.allot.pending_count_of_verifiers -= allotted_to_count;
+						if vr.state.allot.pending_count_of_verifiers == 0 {
+							vr.state.allot.state = false;
+							vr.state.allot.ended_at = Some(current_block);
+						}
+						if !vr.state.ack.state {
+							vr.state.ack.state = true;
+							vr.state.ack.started_at = current_block;
+							vr.state.ack.state_duration = parameters.max_waiting_time_at_stages;
+						}
 						// update submit v para stage parameters
-						start_stage!(
-							submit_vp,
-							vr,
-							parameters.min_count_at_submit_vp_stage,
-							parameters.max_waiting_time_at_stages,
-							current_block
-						);
-					}
+						if !vr.state.submit_vp.state {
+							vr.state.submit_vp.state = true;
+							vr.state.submit_vp.started_at = current_block;
+							vr.state.submit_vp.state_duration =
+								parameters.max_waiting_time_at_stages;
+						}
 
-					Ok(())
-				})?;
+						Ok(())
+					})?;
+				}
 			}
 			Ok(())
 		}
@@ -587,7 +567,7 @@ pub mod pallet {
 			// update verification request meta
 			VerificationRequests::<T>::try_mutate(consumer_account_id, |v| -> DispatchResult {
 				let mut vr = v.as_mut().ok_or(Error::<T>::NoDidReqFound)?;
-				act_on_fulfilled!(ack, vr, 1, current_block);
+				vr.state.ack.done_count_of_verifiers += 1;
 				Ok(())
 			})?;
 
@@ -639,8 +619,7 @@ pub mod pallet {
 			// update verification request meta
 			VerificationRequests::<T>::try_mutate(consumer_account_id, |v| -> DispatchResult {
 				let mut vr = v.as_mut().ok_or(Error::<T>::NoDidReqFound)?;
-				// vr.act_on_fulfilled_submit_vp(1, current_block);
-				act_on_fulfilled!(submit_vp, vr, 1, current_block);
+				vr.state.submit_vp.done_count_of_verifiers += 1;
 				Ok(())
 			})?;
 			Ok(())
@@ -712,10 +691,29 @@ pub mod pallet {
 				},
 			)?;
 			// update verification request meta
+			let parameters = Self::protocol_parameters();
 			VerificationRequests::<T>::try_mutate(consumer_account_id, |v| -> DispatchResult {
 				let mut vr = v.as_mut().ok_or(Error::<T>::NoDidReqFound)?;
 				// vr.act_on_fulfilled_reveal(1, current_block);
-				act_on_fulfilled!(reveal, vr, 1, current_block);
+				vr.state.reveal.done_count_of_verifiers += 1;
+				// vr.state.reveal.pending_count_of_verifiers -= 1;
+				if vr.state.reveal.done_count_of_verifiers >= parameters.min_count_at_reveal_stage {
+					vr.state.reveal.state = false;
+					vr.state.reveal.ended_at = Some(current_block);
+					//change stage to Reveal and stop accepting at upper stages
+					vr.state.stage = VerificationStages::Eval;
+					vr.state.allot.state = false;
+					vr.state.ack.state = false;
+					vr.state.ack.ended_at = Some(current_block);
+
+					vr.state.submit_vp.state = false;
+					vr.state.submit_vp.ended_at = Some(current_block);
+					//start the next stage: evaluation of revealed parameters
+					vr.state.stage = VerificationStages::Eval;
+					vr.state.eval_vp_state = Some(EvalVpState::Pending);
+					vr.state.eval_vp_result = Some(EvalVpResult::Pending);
+				}
+
 				Ok(())
 			})?;
 			Ok(())
@@ -744,55 +742,24 @@ pub mod pallet {
 			return Err(Error::<T>::NotAllowed.into())
 		}
 
-		fn act_on_wait_over_for_ack(
-			current_block: T::BlockNumber,
-			list_verification_req: Vec<&T::AccountId>,
-		) -> Result<(), Error<T>> {
-			for consumer_id in list_verification_req {
-				VerificationRequests::<T>::try_mutate(consumer_id, |v| -> Result<(), Error<T>> {
-					let mut vr = v.as_mut().ok_or(Error::<T>::NoDidReqFound)?;
-					let num_of_new_verifiers_required_allot =
-						vr.state.ack.pending_count_of_verifiers * 2;
-					// vr.start_allot(num_of_new_verifiers_required_allot, 0, current_block);
-					start_stage!(allot, vr, num_of_new_verifiers_required_allot, 0, current_block);
-
-					let state_duration_incr_ack =
-						vr.state.ack.state_duration * vr.state.ack.round_number as u32;
-					// vr.start_ack(0, state_duration_incr_ack, current_block);
-					start_stage!(ack, vr, 0, state_duration_incr_ack, current_block);
-					Ok(())
-				})?;
-			}
-			Ok(())
-		}
-
 		fn act_on_wait_over_for_submit_vp(
-			current_block: T::BlockNumber,
+			parameters: ProtocolParameterValues,
 			list_verification_req: Vec<&T::AccountId>,
 		) -> Result<(), Error<T>> {
 			for consumer_id in list_verification_req {
 				VerificationRequests::<T>::try_mutate(consumer_id, |v| -> Result<(), Error<T>> {
 					let mut vr = v.as_mut().ok_or(Error::<T>::NoDidReqFound)?;
-					let num_of_new_verifiers_required_allot =
-						vr.state.submit_vp.pending_count_of_verifiers * 3;
-					start_stage!(allot, vr, num_of_new_verifiers_required_allot, 0, current_block);
-
-					let state_duration_incr_ack =
-						vr.state.ack.state_duration * vr.state.ack.round_number as u32;
-					let num_of_new_verifiers_required_ack =
-						vr.state.submit_vp.pending_count_of_verifiers * 3;
-
-					start_stage!(
-						ack,
-						vr,
-						num_of_new_verifiers_required_ack,
-						state_duration_incr_ack,
-						current_block
-					);
-
+					let num_of_new_verifiers_required_allot = (parameters
+						.min_count_at_submit_vp_stage -
+						vr.state.submit_vp.done_count_of_verifiers) *
+						3;
+					vr.round_number += 1;
+					vr.state.allot.state = true;
+					vr.state.allot.pending_count_of_verifiers +=
+						num_of_new_verifiers_required_allot;
 					let state_duration_incr_submit_vp =
-						vr.state.submit_vp.state_duration * vr.state.submit_vp.round_number as u32;
-					start_stage!(submit_vp, vr, 0, state_duration_incr_submit_vp, current_block);
+						vr.state.submit_vp.state_duration * vr.round_number as u32;
+					vr.state.submit_vp.state_duration += state_duration_incr_submit_vp;
 
 					Ok(())
 				})?;
@@ -808,14 +775,21 @@ pub mod pallet {
 			for consumer_id in list_verification_req {
 				VerificationRequests::<T>::try_mutate(consumer_id, |v| -> Result<(), Error<T>> {
 					let mut vr = v.as_mut().ok_or(Error::<T>::NoDidReqFound)?;
-					// vr.start_allot(num_of_new_verifiers_required_allot, 0, current_block);
-					start_stage!(
-						reveal,
-						vr,
-						parameters.min_count_at_reveal_stage,
-						parameters.max_waiting_time_at_stages,
-						current_block
-					);
+					vr.state.reveal.state = true;
+					vr.state.reveal.started_at = current_block;
+					// default value started at zero.
+					vr.state.reveal.pending_count_of_verifiers +=
+						parameters.min_count_at_reveal_stage;
+					// state duration to be set not incremented
+					vr.state.reveal.state_duration = parameters.max_waiting_time_at_stages;
+
+					// update verification request stage to indicate Reveal state
+					// and close previous stages if starting reveal stage
+
+					vr.state.stage = VerificationStages::Reveal;
+					vr.state.allot.state = false;
+					vr.state.ack.state = false;
+					vr.state.submit_vp.state = false;
 
 					Ok(())
 				})?;
@@ -892,11 +866,10 @@ pub mod pallet {
 
 	impl<T: Config> Pallet<T> {
 		pub(crate) fn app_chain_tasks(current_block: T::BlockNumber) -> Result<(), Error<T>> {
-			// // get sorted list of verifiers to receive tasks
-			let active_verifiers: Vec<T::AccountId> = T::VerifiersProvider::get_verifiers();
-
-			// get the list of pending tasks
-			let verification_tasks = VerificationRequests::<T>::iter_values().collect::<Vec<_>>();
+			let parameters = Self::protocol_parameters();
+			// get the list of pending tasks, max 500
+			let verification_tasks =
+				VerificationRequests::<T>::iter_values().take(1000).collect::<Vec<_>>();
 			let mut pending_allotments: Vec<(&T::AccountId, u16)> = Vec::new();
 			let mut submit_vp_completed: Vec<&T::AccountId> = Vec::new();
 			let mut pending_eval: Vec<&T::AccountId> = Vec::new();
@@ -906,7 +879,8 @@ pub mod pallet {
 				{
 					// allot state is true so start to allocate task to new verifiers
 					pending_eval.push(&vr_req.consumer_account_id);
-				} else if !vr_req.state.submit_vp.state &&
+				} else if vr_req.state.submit_vp.done_count_of_verifiers >=
+					parameters.min_count_at_submit_vp_stage &&
 					vr_req.state.stage == VerificationStages::AllotAckVp
 				{
 					// submit_vp state has completed and in AllotAckVp stage
@@ -920,7 +894,6 @@ pub mod pallet {
 					));
 				}
 			}
-			// // check new task pending for allotment
 
 			if pending_eval.len() > 0 {
 				let result = Self::eval(current_block, pending_eval);
@@ -937,54 +910,41 @@ pub mod pallet {
 				}
 			}
 
-			if pending_allotments.len() > 0 && active_verifiers.len() > 0 {
-				Self::allot_verification_task(current_block, active_verifiers, pending_allotments)?;
+			if pending_allotments.len() > 0 {
+				// get sorted list of verifiers to receive tasks
+				let active_verifiers: Vec<T::AccountId> = T::VerifiersProvider::get_verifiers();
+				if active_verifiers.len() > 0 {
+					Self::allot_verification_task(
+						current_block,
+						active_verifiers,
+						pending_allotments,
+					)?;
+				}
 			};
 
-			// END--check new task pending for allotment
-			//---start reveal check ---
 			if submit_vp_completed.len() > 0 {
-				log::debug!(
-					"%%%--%%% found start reveal cases. count:{:?}",
-					submit_vp_completed.len()
-				);
 				Self::start_reveal(current_block, submit_vp_completed)?;
 			};
-			// end --start reveal check --
 
-			let mut list_wait_over_ack: Vec<&T::AccountId> = Vec::new();
+			// let mut list_wait_over_ack: Vec<&T::AccountId> = Vec::new();
 			let mut list_wait_over_submit_vp: Vec<&T::AccountId> = Vec::new();
 
-			for vr_req in verification_tasks
-				.iter()
-				.filter(|v| v.state.ack.state || v.state.submit_vp.state)
-			{
-				if vr_req.state.submit_vp.state {
-					if T::BlockNumber::from(vr_req.state.submit_vp.state_duration) +
-						vr_req.state.submit_vp.started_at <
-						current_block
-					{
-						//submitvp wait over
-						list_wait_over_submit_vp.push(&vr_req.consumer_account_id);
-						//action on this will update ack state para also, so skip
-						continue
-					}
-				}
-				if vr_req.state.ack.state {
-					if T::BlockNumber::from(vr_req.state.submit_vp.state_duration) +
-						vr_req.state.submit_vp.started_at <
-						current_block
-					{
-						//ack wait over
-						list_wait_over_ack.push(&vr_req.consumer_account_id);
-					}
+			for vr_req in verification_tasks.iter().filter(|v| {
+				v.state.submit_vp.state &&
+					v.state.submit_vp.done_count_of_verifiers <
+						parameters.min_count_at_submit_vp_stage
+			}) {
+				if T::BlockNumber::from(vr_req.state.submit_vp.state_duration) +
+					vr_req.state.submit_vp.started_at <
+					current_block
+				{
+					//submitvp wait over
+					list_wait_over_submit_vp.push(&vr_req.consumer_account_id);
 				}
 			}
-			if list_wait_over_ack.len() > 0 {
-				Self::act_on_wait_over_for_ack(current_block, list_wait_over_ack)?;
-			}
+
 			if list_wait_over_submit_vp.len() > 0 {
-				Self::act_on_wait_over_for_submit_vp(current_block, list_wait_over_submit_vp)?;
+				Self::act_on_wait_over_for_submit_vp(parameters, list_wait_over_submit_vp)?;
 			}
 
 			Ok(())
@@ -1029,7 +989,6 @@ pub mod pallet {
 					if split_vec[3].len() != 32 ||
 						split_vec[4].len() != 32 || split_vec[5].len() != 32
 					{
-						log::debug!("X0X0X0X0-----InvalidRevealedData ");
 						return Err(Error::<T>::InvalidRevealedData.into())
 					}
 					let mut at_least_one = false;

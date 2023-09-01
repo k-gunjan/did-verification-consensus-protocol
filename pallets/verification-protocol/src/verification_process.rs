@@ -1,4 +1,4 @@
-use crate::{types::VerifierUpdateData, Config, Error};
+use crate::{types::*, Config, Error};
 use frame_support::{dispatch::DispatchResult, inherent::Vec};
 
 /// Traits of verification process
@@ -58,19 +58,11 @@ pub trait VerificationProcess<C: Config> {
 		consumer_account_id: &C::AccountId,
 	) -> DispatchResult;
 
-	/// Check if wait time for ack is over. re-allot to
-	/// more verifiers if wait is over and not completely fulfilled
-	/// This takes list of verification request ids to act on
-	fn act_on_wait_over_for_ack(
-		current_block: C::BlockNumber,
-		verification_req_id: Vec<&C::AccountId>,
-	) -> Result<(), Error<C>>;
-
 	/// Check if wait time for submit_vp is over. re-allot to
 	/// more verifiers if wait is over and not completely fulfilled
 	/// This takes list of verification request ids to act on
 	fn act_on_wait_over_for_submit_vp(
-		current_block: C::BlockNumber,
+		parameters: ProtocolParameterValues,
 		list_verification_req: Vec<&C::AccountId>,
 	) -> Result<(), Error<C>>;
 
