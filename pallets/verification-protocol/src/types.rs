@@ -290,20 +290,6 @@ pub enum Incentive<Balance> {
 	Penalty(Balance),
 }
 
-// #[derive(Clone, Debug)]
-// pub enum Increment {
-// 	Accepted(u8),
-// 	UnAccepted(u8),
-// 	NotCompleted(u8),
-// }
-
-// #[derive(Debug)]
-// pub struct VerifierUpdateData {
-// 	// account_id: A,
-// 	incentive_factor: FixedU128,
-// 	increment: Increment,
-// }
-
 impl<T: Config> VerificationProcessData<T> {
 	// evaluation the winner submission by majority wins
 	// takes the list of the Self

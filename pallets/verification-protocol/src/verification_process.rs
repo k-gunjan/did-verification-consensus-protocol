@@ -1,4 +1,4 @@
-use crate::{types::VerifierUpdateData, Config, Error};
+use crate::{types::*, Config, Error};
 use frame_support::{dispatch::DispatchResult, inherent::Vec};
 
 /// Traits of verification process
@@ -62,7 +62,7 @@ pub trait VerificationProcess<C: Config> {
 	/// more verifiers if wait is over and not completely fulfilled
 	/// This takes list of verification request ids to act on
 	fn act_on_wait_over_for_submit_vp(
-		current_block: C::BlockNumber,
+		parameters: ProtocolParameterValues,
 		list_verification_req: Vec<&C::AccountId>,
 	) -> Result<(), Error<C>>;
 

@@ -743,21 +743,20 @@ pub mod pallet {
 		}
 
 		fn act_on_wait_over_for_submit_vp(
-			current_block: T::BlockNumber,
+			parameters: ProtocolParameterValues,
 			list_verification_req: Vec<&T::AccountId>,
 		) -> Result<(), Error<T>> {
 			for consumer_id in list_verification_req {
 				VerificationRequests::<T>::try_mutate(consumer_id, |v| -> Result<(), Error<T>> {
 					let mut vr = v.as_mut().ok_or(Error::<T>::NoDidReqFound)?;
-					let num_of_new_verifiers_required_allot =
-						vr.state.submit_vp.pending_count_of_verifiers * 3;
-
+					let num_of_new_verifiers_required_allot = (parameters
+						.min_count_at_submit_vp_stage -
+						vr.state.submit_vp.done_count_of_verifiers) *
+						3;
 					vr.round_number += 1;
-					if !vr.state.allot.state {
-						vr.state.allot.state = true;
-						vr.state.allot.pending_count_of_verifiers +=
-							num_of_new_verifiers_required_allot;
-					}
+					vr.state.allot.state = true;
+					vr.state.allot.pending_count_of_verifiers +=
+						num_of_new_verifiers_required_allot;
 					let state_duration_incr_submit_vp =
 						vr.state.submit_vp.state_duration * vr.round_number as u32;
 					vr.state.submit_vp.state_duration += state_duration_incr_submit_vp;
@@ -930,20 +929,22 @@ pub mod pallet {
 			// let mut list_wait_over_ack: Vec<&T::AccountId> = Vec::new();
 			let mut list_wait_over_submit_vp: Vec<&T::AccountId> = Vec::new();
 
-			for vr_req in verification_tasks.iter().filter(|v| v.state.submit_vp.state) {
-				if vr_req.state.submit_vp.state {
-					if T::BlockNumber::from(vr_req.state.submit_vp.state_duration) +
-						vr_req.state.submit_vp.started_at <
-						current_block
-					{
-						//submitvp wait over
-						list_wait_over_submit_vp.push(&vr_req.consumer_account_id);
-					}
+			for vr_req in verification_tasks.iter().filter(|v| {
+				v.state.submit_vp.state &&
+					v.state.submit_vp.done_count_of_verifiers <
+						parameters.min_count_at_submit_vp_stage
+			}) {
+				if T::BlockNumber::from(vr_req.state.submit_vp.state_duration) +
+					vr_req.state.submit_vp.started_at <
+					current_block
+				{
+					//submitvp wait over
+					list_wait_over_submit_vp.push(&vr_req.consumer_account_id);
 				}
 			}
 
 			if list_wait_over_submit_vp.len() > 0 {
-				Self::act_on_wait_over_for_submit_vp(current_block, list_wait_over_submit_vp)?;
+				Self::act_on_wait_over_for_submit_vp(parameters, list_wait_over_submit_vp)?;
 			}
 
 			Ok(())
