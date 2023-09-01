@@ -16,7 +16,7 @@ pub enum Increment {
 	NotCompleted(u8),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VerifierUpdateData {
 	// account_id: A,
 	pub incentive_factor: FixedU128,
@@ -59,18 +59,26 @@ impl<AccountId, BlockNumber, Balance> Verifier<AccountId, BlockNumber, Balance> 
 
 	pub fn accuracy(&self) -> FixedI64 {
 		// return 100% for the initial case where all the counts are zero.
-		if self.count_of_accepted_submissions + self.count_of_un_accepted_submissions == 0 {
+		if self.count_of_accepted_submissions +
+			self.count_of_un_accepted_submissions +
+			self.count_of_incompleted_processes ==
+			0
+		{
 			return FixedI64::from_u32(100)
 		}
 		let count_of_accepted_submissions = FixedI64::from_u32(self.count_of_accepted_submissions);
 		let count_of_un_accepted_submissions =
 			FixedI64::from_u32(self.count_of_un_accepted_submissions);
+		let count_of_incompleted_processes =
+			FixedI64::from_u32(self.count_of_incompleted_processes);
 		// let nominator = count_of_accepted_submissions
 		// 	.checked_sub(&count_of_un_accepted_submissions)
 		// 	.unwrap_or_else(|| FixedI64::min_value());
 
 		let denominator = count_of_accepted_submissions
 			.checked_add(&count_of_un_accepted_submissions)
+			.unwrap_or_else(|| FixedI64::max_value())
+			.checked_add(&count_of_incompleted_processes)
 			.unwrap_or_else(|| FixedI64::max_value());
 		// result = x/(x+y) * 100
 		let result = count_of_accepted_submissions
