@@ -34,7 +34,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use sp_runtime::{
 		traits::{Bounded, CheckedAdd, CheckedMul, CheckedSub, Zero},
-		ArithmeticError, FixedU128,
+		ArithmeticError, FixedI64, FixedU128,
 	};
 	use sp_std::vec::Vec;
 	#[pallet::pallet]
@@ -118,6 +118,19 @@ pub mod pallet {
 		ArithmeticOverflow,
 	}
 
+	struct RandomHexNumber {
+		index: usize,
+		nums: Vec<u8>,
+	}
+	impl Iterator for RandomHexNumber {
+		type Item = u8;
+		fn next(&mut self) -> Option<Self::Item> {
+			let random_hex = self.nums[self.index % self.nums.len()];
+			self.index += 1;
+			Some(random_hex)
+		}
+	}
+
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		/// At block finalization
@@ -128,8 +141,41 @@ pub mod pallet {
 					.filter(|v| v.state == VerifierState::Active)
 					.map(|v| v)
 					.collect();
+			let parent_blockhash = <frame_system::Pallet<T>>::parent_hash();
+
+			let decimal_values: Vec<u8> = parent_blockhash
+				.as_ref()
+				.iter()
+				.flat_map(|byte| {
+					let high_nibble: u8 = (byte >> 4) & 0xF;
+					let low_nibble: u8 = byte & 0xF;
+					Vec::from([high_nibble, low_nibble])
+				})
+				.collect();
+			let mut rand_number = RandomHexNumber { index: 0, nums: decimal_values };
+			let mut i = 0;
 			// sort by accuracy of the verifiers
-			verifiers.sort_by_key(|k| k.accuracy());
+			verifiers.sort_by_cached_key(|k| {
+				//For one out of 16 probable cases randomize the score by multiplying a random
+				// number between 0 to 1.5
+				let accuracy = if rand_number
+					.next()
+					.expect("random number generator should never run out !!!") ==
+					15
+				{
+					k.accuracy() *
+						FixedI64::from_u32(
+							rand_number
+								.next()
+								.expect("random number generator  should never run out !!!") as u32,
+						) / 10.into()
+				} else {
+					k.accuracy()
+				};
+				i += 1;
+				sp_std::cmp::Reverse(accuracy)
+			});
+
 			let new_verifiers: Vec<T::AccountId> =
 				verifiers.iter().map(|v| v.account_id.clone()).collect();
 

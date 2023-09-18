@@ -13,11 +13,10 @@ pub(crate) use pallet_verification_protocol::{
 	*,
 };
 pub use sp_core::{bounded_vec::BoundedVec, keccak_256, sr25519, sr25519::Public, Pair, H256};
-pub use sp_runtime::FixedI64;
-use sp_runtime::{
+pub use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
-	BuildStorage,
+	BuildStorage, FixedI64, FixedU128,
 };
 pub(crate) use verifiers::types::ProtocolParameterValues as VerifierProtocolParameterValues;
 

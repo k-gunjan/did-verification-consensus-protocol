@@ -1,20 +1,8 @@
 use super::mock::*;
-use sp_runtime::FixedU128;
 use verifiers::{
 	types::{Verifier, VerifierState},
 	VerifiersProvider,
 };
-
-// pub struct VerifierUpdateData {
-// 	// account_id: A,
-// 	pub incentive_factor: FixedU128,
-// 	pub increment: Increment,
-// }
-// pub enum Increment {
-// 	Accepted(u8),
-// 	UnAccepted(u8),
-// 	NotCompleted(u8),
-// }
 
 #[test]
 fn test_register_verifier_success() {
@@ -69,7 +57,7 @@ fn test_register_verifier_error_insufficient_balance() {
 }
 
 #[test]
-fn test_register_verifier_success_verifier_state_higher_deposit() {
+fn test_register_verifier_success_verifier_state_on_higher_deposit() {
 	let initial_balance = 1000_000_000_000_000;
 	let deposit = 100u128 * 10u128.pow(12);
 
@@ -83,7 +71,7 @@ fn test_register_verifier_success_verifier_state_higher_deposit() {
 			assert!(deposit >= verifier_protocol_parameters.minimum_deposit_for_being_active);
 			// Register a verifier
 			assert_ok!(Verifiers::register_verifier(RuntimeOrigin::signed(bob), deposit),);
-
+			//State should be active
 			assert!(matches!(
 				Verifiers::verifiers(bob),
 				Some(Verifier { state: VerifierState::Active, .. })
@@ -92,7 +80,7 @@ fn test_register_verifier_success_verifier_state_higher_deposit() {
 }
 
 #[test]
-fn test_register_verifier_success_verifier_state_low_deposit() {
+fn test_register_verifier_success_verifier_state_on_low_deposit() {
 	let initial_balance = 1000_000_000_000_000;
 	let deposit = 99u128 * 10u128.pow(12);
 
@@ -150,7 +138,7 @@ fn test_register_verifier_success_verifier_state_transition_from_pending_to_acti
 }
 
 #[test]
-fn test_verifier_submits_accepted_data_success_counter_increments() {
+fn test_verifier_submits_accepted_data_then_counter_increments() {
 	let initial_balance = 1000_000_000_000_000;
 	let deposit = 100u128 * 10u128.pow(12);
 	let num_of_tasks = 5;
@@ -192,7 +180,7 @@ fn test_verifier_submits_accepted_data_success_counter_increments() {
 }
 
 #[test]
-fn test_verifier_submits_un_accepted_data_success_counter_increments() {
+fn test_verifier_submits_un_accepted_data_then_counter_increments() {
 	let initial_balance = 1000_000_000_000_000;
 	let deposit = 100u128 * 10u128.pow(12);
 	let num_of_tasks = 5;
@@ -234,7 +222,7 @@ fn test_verifier_submits_un_accepted_data_success_counter_increments() {
 }
 
 #[test]
-fn test_verifier_not_completed_process_success_counter_increments() {
+fn test_verifier_not_completed_process_then_counter_increments() {
 	let initial_balance = 1000_000_000_000_000;
 	let deposit = 100u128 * 10u128.pow(12);
 	let num_of_tasks = 5;
@@ -276,7 +264,7 @@ fn test_verifier_not_completed_process_success_counter_increments() {
 }
 
 #[test]
-fn test_verifier_not_completed_process_success_deposit_slashes() {
+fn test_verifier_not_completed_process_then_deposit_slashes() {
 	let initial_balance = 1000_000_000_000_000;
 	let deposit = 100u128 * 10u128.pow(12);
 	let num_of_tasks = 1;
@@ -351,7 +339,7 @@ fn test_verifier_not_completed_process_success_deposit_slashes() {
 }
 
 #[test]
-fn test_verifier_un_accepted_submission_success_deposit_slashes() {
+fn test_verifier_un_accepted_submission_then_deposit_slashes() {
 	let initial_balance = 1000_000_000_000_000;
 	let deposit = 100u128 * 10u128.pow(12);
 	let num_of_tasks = 1;
@@ -428,7 +416,7 @@ fn test_verifier_un_accepted_submission_success_deposit_slashes() {
 }
 
 #[test]
-fn test_verifier_submits_accepted_data_success_reward_check() {
+fn test_verifier_submits_accepted_data_then_reward_check() {
 	let initial_balance = 1000_000_000_000_000;
 	let deposit = 100u128 * 10u128.pow(12);
 	let num_of_tasks = 1;
@@ -494,7 +482,7 @@ fn test_verifier_submits_accepted_data_success_reward_check() {
 }
 
 #[test]
-fn test_verifier_submits_accepted_data_success_reward_check_while_in_cooling_period() {
+fn test_verifier_submits_accepted_data_then_reward_check_while_in_cooling_period() {
 	let initial_balance = 1000_000_000_000_000;
 	let deposit = 100u128 * 10u128.pow(12);
 	let num_of_tasks = 1;
